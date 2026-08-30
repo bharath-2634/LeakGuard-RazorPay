@@ -1,0 +1,14 @@
+{
+  "name": "revenue-recovery-sdk",
+  "version": "1.0.0",
+  "description": "Fail-open browser SDK for LeakGuard Razorpay payment failure risk detection",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

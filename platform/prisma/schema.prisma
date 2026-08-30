@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Merchant {
+  id                String            @id
+  name              String
+  domain            String
+  environment       String            @default("production") // production | test
+  defaultCurrency   String            @default("INR")
+  timezone          String            @default("UTC")
+  razorpayKeyId     String
+  razorpaySecretRef String            // AES-256-GCM encrypted
+  status            String            @default("ACTIVE")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  economics         MerchantEconomics?
+  paymentAttempts   PaymentAttempt[]
+  paymentEvents     PaymentEvent[]
+  webhookEvents     RazorpayWebhookEvent[]
+  riskEvents        RiskEvent[]
+
+  @@map("merchants")
+}
+
+model MerchantEconomics {
+  id                       String   @id @default(uuid())
+  merchantId               String   @unique
+  merchant                 Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  defaultMarginRate        Float    @default(0.20)
+  categoryEconomics        Json?    // category -> { margin_rate }
+  minimumRecoveryThreshold Float    @default(0.0)
+  maxRecoveryCost          Float    @default(0.0)
+  version                  Int      @default(1)
+  updatedAt                DateTime @updatedAt
+
+  @@map("merchant_economics")
+}
+
+model PaymentAttempt {
+  id                        String         @id // pa_...
+  merchantId                String
+  merchant                  Merchant       @relation(fields: [merchantId], references: [id])
+  customerId                String?
+  sessionId                 String?
+  merchantOrderId           String
+  razorpayOrderId           String?
+  razorpayPaymentId         String?
+  amount                    Float
+  currency                  String         @default("INR")
+  providerState             String         @default("CREATED") // CREATED, AUTHORIZED, CAPTURED, FAILED
+  businessState             String         @default("UNRESOLVED") // UNRESOLVED, RESOLVED
+  revenueObligationResolved Boolean        @default(false)
+  startedAt                 DateTime       @default(now())
+  resolvedAt                DateTime?
+  expiresAt                 DateTime
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+
+  paymentEvents             PaymentEvent[]
+
+  @@index([merchantId, merchantOrderId])
+  @@index([merchantId, customerId])
+  @@index([razorpayOrderId])
+  @@index([razorpayPaymentId])
+  @@map("payment_attempts")
+}
+
+model PaymentEvent {
+  id               String         @id @default(uuid())
+  paymentAttemptId String
+  paymentAttempt   PaymentAttempt @relation(fields: [paymentAttemptId], references: [id], onDelete: Cascade)
+  merchantId       String
+  merchant         Merchant       @relation(fields: [merchantId], references: [id])
+  eventType        String
+  source           String         // sdk | razorpay | merchant
+  payload          Json
+  occurredAt       DateTime
+  receivedAt       DateTime       @default(now())
+  correlationId    String?
+
+  @@index([paymentAttemptId])
+  @@index([merchantId])
+  @@map("payment_events")
+}
+
+model RazorpayWebhookEvent {
+  id              String    @id @default(uuid())
+  razorpayEventId String    @unique
+  merchantId      String
+  merchant        Merchant  @relation(fields: [merchantId], references: [id])
+  eventType       String
+  paymentId       String?
+  orderId         String?
+  payload         Json
+  receivedAt      DateTime  @default(now())
+  processedAt     DateTime?
+  status          String    @default("PENDING") // PENDING, PROCESSED, FAILED
+
+  @@map("razorpay_webhook_events")
+}
+
+model RiskEvent {
+  id               String   @id @default(uuid())
+  paymentAttemptId String
+  merchantId       String
+  merchant         Merchant @relation(fields: [merchantId], references: [id])
+  eventType        String   @default("PAYMENT_FAILURE_RISK")
+  payload          Json
+  emittedAt        DateTime @default(now())
+
+  @@index([paymentAttemptId])
+  @@index([merchantId])
+  @@map("risk_events")
+}
