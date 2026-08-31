@@ -19,13 +19,14 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true }));
 
+// Health Check Endpoints
+app.get(['/health', '/v1/health'], (req, res) => {
+  res.json({ status: 'ok', service: 'LeakGuard-RazorPay RevenueRiskDetectionSDK Platform' });
+});
+
 // API Endpoints
 app.use('/v1', merchantRoutes);
 app.use('/v1', paymentRoutes);
 app.use('/v1', sdkRoutes);
 app.use('/v1', telemetryRoutes);
 app.use('/v1', webhookRoutes);
-
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'LeakGuard-RazorPay RevenueRiskDetectionSDK Platform' });
-});
