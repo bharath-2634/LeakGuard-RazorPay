@@ -35,4 +35,5 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma db push --skip-generate && npm start"]
+# Start server directly
+CMD ["npm", "start"]
