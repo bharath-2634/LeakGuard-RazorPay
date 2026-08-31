@@ -39,6 +39,21 @@ export const Repository = {
     return record;
   },
 
+  async updateMerchant(id: string, updates: any) {
+    if (process.env.DATABASE_URL) {
+      return await prisma.merchant.update({
+        where: { id },
+        data: updates,
+        include: { economics: true },
+      });
+    }
+    const current = inMemoryStore.merchants.get(id);
+    if (!current) return null;
+    const updated = { ...current, ...updates, updatedAt: new Date() };
+    inMemoryStore.merchants.set(id, updated);
+    return updated;
+  },
+
   async findMerchantById(id: string) {
     if (process.env.DATABASE_URL) {
       const m = await prisma.merchant.findUnique({
@@ -81,6 +96,20 @@ export const Repository = {
     return updated;
   },
 
+  async updateAllAttemptsForMerchantOrder(merchantId: string, merchantOrderId: string, updates: any) {
+    if (process.env.DATABASE_URL) {
+      return await prisma.paymentAttempt.updateMany({
+        where: { merchantId, merchantOrderId },
+        data: updates,
+      });
+    }
+    const attempts = await this.findPaymentAttemptsByMerchantOrder(merchantId, merchantOrderId);
+    for (const pa of attempts) {
+      await this.updatePaymentAttempt(pa.id, updates);
+    }
+    return { count: attempts.length };
+  },
+
   async findPaymentAttemptById(id: string) {
     if (process.env.DATABASE_URL) {
       const pa = await prisma.paymentAttempt.findUnique({
@@ -115,6 +144,40 @@ export const Repository = {
     ) || null;
   },
 
+  async findPaymentAttemptByOrderOrPayment(merchantId: string, orderId?: string, paymentId?: string) {
+    if (process.env.DATABASE_URL) {
+      if (orderId) {
+        const byOrder = await prisma.paymentAttempt.findFirst({
+          where: { merchantId, razorpayOrderId: orderId },
+        });
+        if (byOrder) return byOrder;
+      }
+      if (paymentId) {
+        const byPaymentId = await prisma.paymentAttempt.findFirst({
+          where: { merchantId, razorpayPaymentId: paymentId },
+        });
+        if (byPaymentId) return byPaymentId;
+      }
+      if (orderId) {
+        const byMerchantOrder = await prisma.paymentAttempt.findFirst({
+          where: { merchantId, merchantOrderId: orderId },
+        });
+        if (byMerchantOrder) return byMerchantOrder;
+      }
+      return null;
+    }
+
+    const all = Array.from(inMemoryStore.paymentAttempts.values()).filter((pa) => pa.merchantId === merchantId);
+    return (
+      all.find(
+        (pa) =>
+          (orderId && pa.razorpayOrderId === orderId) ||
+          (paymentId && pa.razorpayPaymentId === paymentId) ||
+          (orderId && pa.merchantOrderId === orderId)
+      ) || null
+    );
+  },
+
   // PAYMENT EVENTS
   async createPaymentEvent(data: any) {
     if (process.env.DATABASE_URL) {
@@ -123,6 +186,15 @@ export const Repository = {
     const record = { id: `pe_${Date.now()}_${Math.random()}`, ...data, receivedAt: new Date() };
     inMemoryStore.paymentEvents.push(record);
     return record;
+  },
+
+  async createPaymentEvents(events: any[]) {
+    const results = [];
+    for (const evt of events) {
+      const res = await this.createPaymentEvent(evt);
+      results.push(res);
+    }
+    return results;
   },
 
   // WEBHOOK DEDUPLICATION
@@ -137,11 +209,16 @@ export const Repository = {
 
   async findWebhookEventById(razorpayEventId: string) {
     if (process.env.DATABASE_URL) {
-      return await prisma.razorpayWebhookEvent.findUnique({
+      const result = await prisma.razorpayWebhookEvent.findUnique({
         where: { razorpayEventId },
       });
+      if (result) return result;
     }
     return inMemoryStore.razorpayWebhookEvents.get(razorpayEventId) || null;
+  },
+
+  async findWebhookEvent(razorpayEventId: string) {
+    return await this.findWebhookEventById(razorpayEventId);
   },
 
   // RISK EVENTS
