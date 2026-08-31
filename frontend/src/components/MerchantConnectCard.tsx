@@ -156,14 +156,12 @@ export const MerchantConnectCard: React.FC<MerchantConnectCardProps> = ({
 
       if (response.ok && data.success) {
         setIsConnected(true);
-        setSuccessMsg(`Merchant store '${data.merchant.name}' connected successfully! AES-256-GCM keys secured.`);
+        setSuccessMsg(`Merchant store '${data.merchant.name}' connected successfully! Saved to Neon PostgreSQL with AES-256-GCM encryption.`);
       } else {
         setErrorMsg(data.error || 'Failed to connect merchant');
       }
     } catch (err: any) {
-      // Local fallback for dev testing
-      setIsConnected(true);
-      setSuccessMsg(`Connected successfully in Local Mode! Merchant ID '${merchantConfig.merchantId}' active.`);
+      setErrorMsg(`Could not connect to Platform API at ${platformUrl}: ${err.message}`);
     } finally {
       setLoading(false);
     }

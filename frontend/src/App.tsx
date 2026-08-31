@@ -12,8 +12,8 @@ export function App() {
     merchantId: 'm_shopexpress_9f82a',
     merchantName: 'ShopExpress E-Commerce',
     storeDomain: 'shopexpress.com',
-    razorpayKeyId: 'rzp_test_key_112233',
-    razorpayKeySecret: 'rzp_test_secret_998877',
+    razorpayKeyId: 'rzp_test_TWEQTS4vaQiKvB',
+    razorpayKeySecret: 'JwG1G4hB3xIpuPuwa1bJG9mL',
     marginRate: 0.20,
     categoryTags: [
       { name: 'electrical', marginal_rate: '20%', numeric_rate: 0.20 },
@@ -21,7 +21,7 @@ export function App() {
     ],
   });
 
-  const platformUrl = 'http://localhost:3000';
+  const platformUrl = import.meta.env.VITE_PLATFORM_URL || 'https://leakguard-razorpay-production.up.railway.app';
 
   return (
     <div className="min-h-screen pb-16">
