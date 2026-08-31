@@ -2,11 +2,11 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY frontend/package*.json ./
 RUN npm ci
 
-COPY . .
-# Pass VITE_PLATFORM_URL during build
+COPY frontend/ ./
+
 ARG VITE_PLATFORM_URL
 ENV VITE_PLATFORM_URL=${VITE_PLATFORM_URL}
 
@@ -16,7 +16,7 @@ FROM nginx:alpine AS runner
 
 ENV PORT=80
 
-COPY default.conf.template /etc/nginx/templates/default.conf.template
+COPY frontend/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80
