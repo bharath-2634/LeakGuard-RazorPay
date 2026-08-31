@@ -3,7 +3,6 @@ import { PrismaClient } from '@prisma/client';
 
 export const prisma = new PrismaClient();
 
-// In-memory data store for fallback during testing or offline database mode
 class InMemoryDbStore {
   public merchants = new Map<string, any>();
   public merchantEconomics = new Map<string, any>();
@@ -17,11 +16,13 @@ class InMemoryDbStore {
 
 export const inMemoryStore = new InMemoryDbStore();
 
-// Attempt connection on startup
+// Connect to PostgreSQL database on startup
 prisma.$connect()
   .then(() => {
     inMemoryStore.isDbConnected = true;
+    console.log('🐘 [DATABASE] Successfully connected to Neon Cloud PostgreSQL!');
   })
-  .catch(() => {
+  .catch((err) => {
+    console.warn('⚠️ [DATABASE WARNING] Could not connect to primary DB, falling back to memory store:', err.message);
     inMemoryStore.isDbConnected = false;
   });

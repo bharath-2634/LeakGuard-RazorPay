@@ -22,10 +22,12 @@ let redisInstance: Redis | null = null;
 let redisConnected = false;
 
 try {
+  const isTls = config.redisUrl.startsWith('rediss://') || config.redisUrl.includes('upstash.io');
   redisInstance = new Redis(config.redisUrl, {
-    maxRetriesPerRequest: 1,
+    maxRetriesPerRequest: 3,
+    tls: isTls ? { rejectUnauthorized: false } : undefined,
     retryStrategy(times) {
-      if (times > 3) return null; // Stop retrying after 3 attempts
+      if (times > 5) return null;
       return Math.min(times * 100, 1000);
     },
     lazyConnect: true,
@@ -33,13 +35,20 @@ try {
 
   redisInstance.on('connect', () => {
     redisConnected = true;
+    console.log('⚡ [REDIS] Successfully connected to Upstash Cloud Redis!');
   });
 
-  redisInstance.on('error', () => {
-    redisConnected = false;
+  redisInstance.on('ready', () => {
+    redisConnected = true;
   });
 
-  redisInstance.connect().catch(() => {
+  redisInstance.on('error', (err) => {
+    console.warn('⚠️ [REDIS WARNING]', err.message);
+  });
+
+  redisInstance.connect().then(() => {
+    redisConnected = true;
+  }).catch(() => {
     redisConnected = false;
   });
 } catch (e) {
