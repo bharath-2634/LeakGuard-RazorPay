@@ -1,0 +1,39 @@
+services:
+  # 1. Platform Backend API Web Service
+  - type: web
+    name: leakguard-platform-api
+    env: docker
+    dockerContext: ./platform
+    dockerfilePath: ./platform/Dockerfile
+    region: oregon
+    plan: free
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: postgresql://neondb_owner:npg_yzMGPcU9O8Nr@ep-orange-cell-axyxwxyj.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require&connect_timeout=30
+      - key: REDIS_URL
+        value: rediss://default:gQAAAAAAAfwyAAIgcDI3OThiZGI0NmI0MGM0M2Q0YmNiYTJjOTlkYTAxZGIzNw@engaging-lizard-130098.upstash.io:6379
+      - key: UPSTASH_REDIS_REST_URL
+        value: https://engaging-lizard-130098.upstash.io
+      - key: UPSTASH_REDIS_REST_TOKEN
+        value: gQAAAAAAAfwyAAIgcDI3OThiZGI0NmI0MGM0M2Q0YmNiYTJjOTlkYTAxZGIzNw
+      - key: SECRET_MANAGER_KEY
+        value: 32byte_secure_encryption_key_leakguard_test!
+
+  # 2. Frontend Merchant Dashboard Static Site
+  - type: web
+    name: leakguard-merchant-dashboard
+    env: docker
+    dockerContext: ./frontend
+    dockerfilePath: ./frontend/Dockerfile
+    region: oregon
+    plan: free
+    envVars:
+      - key: VITE_PLATFORM_URL
+        fromService:
+          type: web
+          name: leakguard-platform-api
+          property: host
