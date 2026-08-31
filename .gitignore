@@ -40,3 +40,8 @@ coverage/
 # Temporary / Extracted local files
 extracted_doc.txt
 *.tmp
+
+# testing docs
+command.txt
+test_live_razorpay.js
+REVENUE_RISK_DETECTION_SYSTEM_DESIGN.md

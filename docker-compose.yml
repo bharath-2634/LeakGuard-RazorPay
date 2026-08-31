@@ -1,0 +1,72 @@
+services:
+  # 1. Backend Platform Microservice (Connected to Live Neon PostgreSQL & Upstash Redis)
+  platform:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: leakguard-platform
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      # Live Neon Cloud PostgreSQL Connection
+      DATABASE_URL: "postgresql://neondb_owner:npg_yzMGPcU9O8Nr@ep-orange-cell-axyxwxyj.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require&connect_timeout=30"
+      # Live Upstash Cloud Redis Connection
+      REDIS_URL: "rediss://default:gQAAAAAAAfwyAAIgcDI3OThiZGI0NmI0MGM0M2Q0YmNiYTJjOTlkYTAxZGIzNw@engaging-lizard-130098.upstash.io:6379"
+      UPSTASH_REDIS_REST_URL: "https://engaging-lizard-130098.upstash.io"
+      UPSTASH_REDIS_REST_TOKEN: "gQAAAAAAAfwyAAIgcDI3OThiZGI0NmI0MGM0M2Q0YmNiYTJjOTlkYTAxZGIzNw"
+      SECRET_MANAGER_KEY: "32byte_secure_encryption_key_leakguard_test!"
+
+  # 2. Frontend Merchant Dashboard & Developer KT Portal (Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: leakguard-frontend
+    restart: always
+    ports:
+      - "5173:80"
+    depends_on:
+      - platform
+
+  # 3. Optional Local PostgreSQL Container (Fallback for offline development)
+  postgres:
+    image: postgres:16-alpine
+    container_name: leakguard-postgres-local
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: leakguard_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d leakguard_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 4. Optional Local Redis Container (Fallback for offline development)
+  redis:
+    image: redis:7-alpine
+    container_name: leakguard-redis-local
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
