@@ -4,16 +4,12 @@ export const Repository = {
   // MERCHANTS
   async createMerchant(data: any) {
     if (process.env.DATABASE_URL) {
-      try {
-        const result = await prisma.merchant.create({
-          data,
-          include: { economics: true },
-        });
-        console.log('🐘 [NEON DB SUCCESS] Created Merchant in Neon PostgreSQL:', result.id);
-        return result;
-      } catch (e: any) {
-        console.error('⚠️ [NEON DB ERROR] createMerchant failed, falling back to memory:', e.message);
-      }
+      const result = await prisma.merchant.create({
+        data,
+        include: { economics: true },
+      });
+      console.log('🐘 [NEON DB SUCCESS] Created Merchant in Neon PostgreSQL:', result.id);
+      return result;
     }
 
     const record = {
@@ -45,15 +41,11 @@ export const Repository = {
 
   async findMerchantById(id: string) {
     if (process.env.DATABASE_URL) {
-      try {
-        const m = await prisma.merchant.findUnique({
-          where: { id },
-          include: { economics: true },
-        });
-        if (m) return m;
-      } catch (e: any) {
-        console.error('⚠️ [NEON DB ERROR] findMerchantById failed:', e.message);
-      }
+      const m = await prisma.merchant.findUnique({
+        where: { id },
+        include: { economics: true },
+      });
+      if (m) return m;
     }
     return inMemoryStore.merchants.get(id) || null;
   },
@@ -61,13 +53,9 @@ export const Repository = {
   // PAYMENT ATTEMPTS
   async createPaymentAttempt(data: any) {
     if (process.env.DATABASE_URL) {
-      try {
-        const result = await prisma.paymentAttempt.create({ data });
-        console.log('🐘 [NEON DB SUCCESS] Created PaymentAttempt in Neon PostgreSQL:', result.id);
-        return result;
-      } catch (e: any) {
-        console.error('⚠️ [NEON DB ERROR] createPaymentAttempt failed:', e.message);
-      }
+      const result = await prisma.paymentAttempt.create({ data });
+      console.log('🐘 [NEON DB SUCCESS] Created PaymentAttempt in Neon PostgreSQL:', result.id);
+      return result;
     }
     const record = {
       ...data,
@@ -81,14 +69,10 @@ export const Repository = {
 
   async updatePaymentAttempt(id: string, updates: any) {
     if (process.env.DATABASE_URL) {
-      try {
-        return await prisma.paymentAttempt.update({
-          where: { id },
-          data: updates,
-        });
-      } catch (e: any) {
-        console.error('⚠️ [NEON DB ERROR] updatePaymentAttempt failed:', e.message);
-      }
+      return await prisma.paymentAttempt.update({
+        where: { id },
+        data: updates,
+      });
     }
     const current = inMemoryStore.paymentAttempts.get(id);
     if (!current) return null;
@@ -99,29 +83,21 @@ export const Repository = {
 
   async findPaymentAttemptById(id: string) {
     if (process.env.DATABASE_URL) {
-      try {
-        const pa = await prisma.paymentAttempt.findUnique({
-          where: { id },
-          include: { paymentEvents: true },
-        });
-        if (pa) return pa;
-      } catch (e: any) {
-        console.error('⚠️ [NEON DB ERROR] findPaymentAttemptById failed:', e.message);
-      }
+      const pa = await prisma.paymentAttempt.findUnique({
+        where: { id },
+        include: { paymentEvents: true },
+      });
+      if (pa) return pa;
     }
     return inMemoryStore.paymentAttempts.get(id) || null;
   },
 
   async findPaymentAttemptsByMerchantOrder(merchantId: string, merchantOrderId: string) {
     if (process.env.DATABASE_URL) {
-      try {
-        return await prisma.paymentAttempt.findMany({
-          where: { merchantId, merchantOrderId },
-          orderBy: { createdAt: 'desc' },
-        });
-      } catch (e: any) {
-        console.error('⚠️ [NEON DB ERROR] findPaymentAttemptsByMerchantOrder failed:', e.message);
-      }
+      return await prisma.paymentAttempt.findMany({
+        where: { merchantId, merchantOrderId },
+        orderBy: { createdAt: 'desc' },
+      });
     }
     return Array.from(inMemoryStore.paymentAttempts.values())
       .filter((pa) => pa.merchantId === merchantId && pa.merchantOrderId === merchantOrderId)
@@ -130,13 +106,9 @@ export const Repository = {
 
   async findPaymentAttemptByRazorpayOrderId(merchantId: string, razorpayOrderId: string) {
     if (process.env.DATABASE_URL) {
-      try {
-        return await prisma.paymentAttempt.findFirst({
-          where: { merchantId, razorpayOrderId },
-        });
-      } catch (e: any) {
-        console.error('⚠️ [NEON DB ERROR] findPaymentAttemptByRazorpayOrderId failed:', e.message);
-      }
+      return await prisma.paymentAttempt.findFirst({
+        where: { merchantId, razorpayOrderId },
+      });
     }
     return Array.from(inMemoryStore.paymentAttempts.values()).find(
       (pa) => pa.merchantId === merchantId && pa.razorpayOrderId === razorpayOrderId
@@ -146,11 +118,7 @@ export const Repository = {
   // PAYMENT EVENTS
   async createPaymentEvent(data: any) {
     if (process.env.DATABASE_URL) {
-      try {
-        return await prisma.paymentEvent.create({ data });
-      } catch (e: any) {
-        console.error('⚠️ [NEON DB ERROR] createPaymentEvent failed:', e.message);
-      }
+      return await prisma.paymentEvent.create({ data });
     }
     const record = { id: `pe_${Date.now()}_${Math.random()}`, ...data, receivedAt: new Date() };
     inMemoryStore.paymentEvents.push(record);
@@ -160,11 +128,7 @@ export const Repository = {
   // WEBHOOK DEDUPLICATION
   async createWebhookEvent(data: any) {
     if (process.env.DATABASE_URL) {
-      try {
-        return await prisma.razorpayWebhookEvent.create({ data });
-      } catch (e: any) {
-        console.error('⚠️ [NEON DB ERROR] createWebhookEvent failed:', e.message);
-      }
+      return await prisma.razorpayWebhookEvent.create({ data });
     }
     const record = { id: `whe_${Date.now()}`, ...data, receivedAt: new Date() };
     inMemoryStore.razorpayWebhookEvents.set(data.razorpayEventId, record);
@@ -173,13 +137,9 @@ export const Repository = {
 
   async findWebhookEventById(razorpayEventId: string) {
     if (process.env.DATABASE_URL) {
-      try {
-        return await prisma.razorpayWebhookEvent.findUnique({
-          where: { razorpayEventId },
-        });
-      } catch (e: any) {
-        console.error('⚠️ [NEON DB ERROR] findWebhookEventById failed:', e.message);
-      }
+      return await prisma.razorpayWebhookEvent.findUnique({
+        where: { razorpayEventId },
+      });
     }
     return inMemoryStore.razorpayWebhookEvents.get(razorpayEventId) || null;
   },
@@ -187,13 +147,9 @@ export const Repository = {
   // RISK EVENTS
   async createRiskEvent(data: any) {
     if (process.env.DATABASE_URL) {
-      try {
-        const result = await prisma.riskEvent.create({ data });
-        console.log('🐘 [NEON DB SUCCESS] Emitted RiskEvent in Neon PostgreSQL:', result.id);
-        return result;
-      } catch (e: any) {
-        console.error('⚠️ [NEON DB ERROR] createRiskEvent failed:', e.message);
-      }
+      const result = await prisma.riskEvent.create({ data });
+      console.log('🐘 [NEON DB SUCCESS] Emitted RiskEvent in Neon PostgreSQL:', result.id);
+      return result;
     }
     const record = { id: `re_${Date.now()}`, ...data, emittedAt: new Date() };
     inMemoryStore.riskEvents.push(record);
