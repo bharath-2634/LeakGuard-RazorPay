@@ -38,6 +38,7 @@ model MerchantEconomics {
   categoryEconomics        Json?    // category -> { margin_rate }
   minimumRecoveryThreshold Float    @default(0.0)
   maxRecoveryCost          Float    @default(0.0)
+  baseRecoveryCost         Float    @default(5.0)
   version                  Int      @default(1)
   updatedAt                DateTime @updatedAt
 
@@ -55,6 +56,13 @@ model PaymentAttempt {
   razorpayPaymentId         String?
   amount                    Float
   currency                  String         @default("INR")
+  
+  // Historical Snapshots
+  customerSegment           String?
+  customerValueSegment      String?
+  historicalLtv             Float?
+  orderCategory             String?
+
   providerState             String         @default("CREATED") // CREATED, AUTHORIZED, CAPTURED, FAILED
   businessState             String         @default("UNRESOLVED") // UNRESOLVED, RESOLVED
   revenueObligationResolved Boolean        @default(false)
@@ -108,17 +116,87 @@ model RazorpayWebhookEvent {
 }
 
 model RiskEvent {
-  id               String   @id @default(uuid())
-  paymentAttemptId String
-  merchantId       String
-  merchant         Merchant @relation(fields: [merchantId], references: [id])
-  eventType        String   @default("PAYMENT_FAILURE_RISK")
-  payload          Json
-  emittedAt        DateTime @default(now())
+  id                   String   @id @default(uuid())
+  paymentAttemptId     String
+  merchantId           String
+  merchant             Merchant @relation(fields: [merchantId], references: [id])
+  eventType            String   @default("PAYMENT_FAILURE_RISK")
+  payload              Json
+
+  processingStatus     String   @default("PENDING")
+  version              Int      @default(1)
+
+  validationStartedAt  DateTime?
+  validationCompletedAt DateTime?
+
+  attemptCount         Int      @default(0)
+
+  emittedAt            DateTime @default(now())
 
   @@index([paymentAttemptId])
   @@index([merchantId])
+  @@index([processingStatus])
   @@map("risk_events")
+}
+
+model RevenueObligation {
+  id                         String   @id @default(uuid())
+  merchantId                 String
+  merchantOrderId            String
+  amount                     Float
+  currency                   String
+
+  status                     String   @default("UNRESOLVED")
+  successfulPaymentAttemptId String?
+  successfulRazorpayPaymentId String?
+
+  resolvedAt                 DateTime?
+  version                    Int      @default(1)
+
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@unique([merchantId, merchantOrderId])
+  @@index([merchantId, status])
+  @@map("revenue_obligations")
+}
+
+model ValidationResult {
+  id                    String   @id @default(uuid())
+
+  riskEventId           String   @unique
+  paymentAttemptId      String
+  merchantId            String
+
+  diagnosedCause        String?
+  diagnosisConfidence   Float?
+
+  actionabilityScore    Float?
+  actionabilityStatus   String?
+
+  priority              String?
+
+  revenueAtRisk         Float?
+  economicFactor        Float?
+  recoveryProbability   Float?
+  recoveryCost          Float?
+
+  expectedRecoveryValue Float?
+  netExpectedRecovery   Float?
+
+  decision              String?
+  stopReason            String?
+
+  evidence              Json?
+
+  correlationId         String?
+  rulesVersion          String?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([merchantId])
+  @@map("validation_results")
 }
 
 model OutboxEvent {

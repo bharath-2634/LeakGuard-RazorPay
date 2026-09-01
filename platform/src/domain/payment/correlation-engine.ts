@@ -40,21 +40,29 @@ export class CorrelationEngine {
       newProviderState = 'CAPTURED';
       newBusinessState = 'RESOLVED';
       isResolved = true;
+
+      // Transactionally resolve PaymentAttempt and RevenueObligation
+      await Repository.resolvePaymentAndObligation(
+        attempt.merchantId,
+        attempt.merchantOrderId,
+        attempt.id,
+        paymentId || attempt.razorpayPaymentId || ''
+      );
     } else if (eventType === 'payment.authorized') {
       newProviderState = 'AUTHORIZED';
+      await Repository.updatePaymentAttempt(attempt.id, {
+        razorpayPaymentId: paymentId || attempt.razorpayPaymentId,
+        providerState: newProviderState,
+      });
     } else if (eventType === 'payment.failed') {
       if (attempt.providerState !== 'CAPTURED') {
         newProviderState = 'FAILED';
+        await Repository.updatePaymentAttempt(attempt.id, {
+          razorpayPaymentId: paymentId || attempt.razorpayPaymentId,
+          providerState: newProviderState,
+        });
       }
     }
-
-    const updatedAttempt = await Repository.updatePaymentAttempt(attempt.id, {
-      razorpayPaymentId: paymentId || attempt.razorpayPaymentId,
-      providerState: newProviderState,
-      businessState: newBusinessState,
-      revenueObligationResolved: isResolved,
-      ...(isResolved && { resolvedAt: new Date() }),
-    });
 
     await updateHotPaymentState(attempt.id, {
       razorpayPaymentId: paymentId || attempt.razorpayPaymentId,
@@ -66,12 +74,6 @@ export class CorrelationEngine {
     });
 
     if (isResolved) {
-      await Repository.updateAllAttemptsForMerchantOrder(attempt.merchantId, attempt.merchantOrderId, {
-        businessState: 'RESOLVED',
-        revenueObligationResolved: true,
-        resolvedAt: new Date(),
-      });
-
       return { processed: true, riskEventEmitted: false };
     }
 

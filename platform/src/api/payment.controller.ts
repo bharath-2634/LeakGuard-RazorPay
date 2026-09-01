@@ -14,6 +14,12 @@ const createPaymentSessionSchema = z.object({
   currency: z.string().optional().default('INR'),
   customerId: z.string().optional(),
   sessionId: z.string().optional(),
+  orderCategory: z.string().optional(),
+  customerContext: z.object({
+    customerSegment: z.string().optional(),
+    customerValueSegment: z.string().optional(),
+    historicalLtv: z.number().optional(),
+  }).optional(),
 });
 
 export async function createPaymentSession(req: Request, res: Response): Promise<void> {
@@ -56,7 +62,7 @@ export async function createPaymentSession(req: Request, res: Response): Promise
     const paymentAttemptId = `pa_${uuidv4().replace(/-/g, '').substring(0, 16)}`;
     const expiresAt = new Date(Date.now() + config.defaultSessionTtlSeconds * 1000);
 
-    const paymentAttempt = await Repository.createPaymentAttempt({
+    const paymentAttempt = await Repository.createPaymentSession({
       id: paymentAttemptId,
       merchantId: merchant.id,
       customerId: data.customerId || null,
@@ -65,6 +71,10 @@ export async function createPaymentSession(req: Request, res: Response): Promise
       razorpayOrderId,
       amount: data.amount,
       currency: data.currency,
+      orderCategory: data.orderCategory || null,
+      customerSegment: data.customerContext?.customerSegment || null,
+      customerValueSegment: data.customerContext?.customerValueSegment || null,
+      historicalLtv: data.customerContext?.historicalLtv || null,
       providerState: 'CREATED',
       businessState: 'UNRESOLVED',
       revenueObligationResolved: false,
