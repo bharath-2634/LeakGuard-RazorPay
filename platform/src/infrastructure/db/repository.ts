@@ -221,15 +221,80 @@ export const Repository = {
     return await this.findWebhookEventById(razorpayEventId);
   },
 
-  // RISK EVENTS
+  // RISK EVENTS WITH TRANSACTIONAL OUTBOX PATTERN & FAT PAYLOAD
   async createRiskEvent(data: any) {
-    if (process.env.DATABASE_URL) {
-      const result = await prisma.riskEvent.create({ data });
-      console.log('🐘 [NEON DB SUCCESS] Emitted RiskEvent in Neon PostgreSQL:', result.id);
-      return result;
+    // 1. Enrich payload with full Merchant details to form the FAT EVENT PAYLOAD (zero DB queries needed by BullMQ workers)
+    let merchantContext = null;
+    try {
+      merchantContext = await this.findMerchantById(data.merchantId);
+    } catch (e: any) {
+      console.warn('⚠️ Could not fetch merchant context for fat payload:', e.message);
     }
-    const record = { id: `re_${Date.now()}`, ...data, emittedAt: new Date() };
+
+    const rawPayload = typeof data.payload === 'object' ? data.payload : {};
+
+    const fatPayload = {
+      ...rawPayload,
+      event_type: data.eventType || 'PAYMENT_FAILURE_RISK',
+      payment_attempt_id: data.paymentAttemptId,
+      merchant_id: data.merchantId,
+      merchant_info: merchantContext
+        ? {
+            name: merchantContext.name,
+            domain: merchantContext.domain,
+            environment: merchantContext.environment,
+            defaultCurrency: merchantContext.defaultCurrency,
+            razorpayKeyId: merchantContext.razorpayKeyId,
+            categoryEconomics: merchantContext.economics?.categoryEconomics || {},
+            defaultMarginRate: merchantContext.economics?.defaultMarginRate || 0.2,
+          }
+        : null,
+      emitted_at: new Date().toISOString(),
+    };
+
+    if (process.env.DATABASE_URL) {
+      // 2. ATOMIC TRANSACTION: Write risk_events + outbox_events in single Neon DB transaction
+      const [riskResult, outboxResult] = await prisma.$transaction([
+        prisma.riskEvent.create({
+          data: {
+            paymentAttemptId: data.paymentAttemptId,
+            merchantId: data.merchantId,
+            eventType: data.eventType || 'PAYMENT_FAILURE_RISK',
+            payload: fatPayload as any,
+          },
+        }),
+        prisma.outboxEvent.create({
+          data: {
+            eventType: data.eventType || 'PAYMENT_FAILURE_RISK',
+            aggregateId: data.paymentAttemptId,
+            payload: fatPayload as any,
+            status: 'PENDING',
+          },
+        }),
+      ]);
+
+      console.log('🐘 [NEON DB TRANSACTION COMMIT] Inserted risk_events (#', riskResult.id, ') AND outbox_events (#', outboxResult.id, ')');
+
+      // 3. Trigger Outbox Relay to publish event to Upstash Redis BullMQ
+      try {
+        const { OutboxPublisher } = await import('../queue/bullmq-client.js');
+        await OutboxPublisher.relayPendingEvents();
+      } catch (relayErr: any) {
+        console.error('⚠️ [OUTBOX RELAY TRIGGER ERROR]:', relayErr.message);
+      }
+
+      return riskResult;
+    }
+
+    // In-memory fallback mode
+    const record = { id: `re_${Date.now()}`, ...data, payload: fatPayload, emittedAt: new Date() };
     inMemoryStore.riskEvents.push(record);
+
+    try {
+      const { OutboxPublisher } = await import('../queue/bullmq-client.js');
+      await OutboxPublisher.relayPendingEvents();
+    } catch (e: any) {}
+
     return record;
   },
 };

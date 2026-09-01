@@ -120,3 +120,17 @@ model RiskEvent {
   @@index([merchantId])
   @@map("risk_events")
 }
+
+model OutboxEvent {
+  id          String    @id @default(uuid())
+  eventType   String    @map("event_type")
+  aggregateId String?   @map("aggregate_id")
+  payload     Json
+  status      String    @default("PENDING") // PENDING, PROCESSED, FAILED
+  attempts    Int       @default(0)
+  lastError   String?   @map("last_error")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  processedAt DateTime? @map("processed_at")
+
+  @@map("outbox_events")
+}
