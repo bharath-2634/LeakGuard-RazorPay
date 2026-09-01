@@ -12,7 +12,7 @@ export const bullmqRedisClient = new Redis(BULLMQ_REDIS_URL, {
   tls: { rejectUnauthorized: false },
 });
 
-export const QUEUE_NAME = 'risk-event-queue';
+export const QUEUE_NAME = 'risk-validation';
 
 // BullMQ Queue instance
 export const riskEventQueue = new Queue(QUEUE_NAME, {
@@ -70,8 +70,16 @@ export const OutboxPublisher = {
 
       for (const event of pendingEvents) {
         try {
-          // Publish Fat Payload into BullMQ Queue
-          await riskEventQueue.add(event.eventType, event.payload, {
+          // Minimize payload for Validation Worker
+          const minimizedPayload = {
+            riskEventId: event.aggregateId,
+            paymentAttemptId: (event.payload as any).paymentAttempt?.id || (event.payload as any).paymentAttemptId,
+            merchantId: (event.payload as any).merchant?.id || (event.payload as any).merchantId,
+            merchantOrderId: (event.payload as any).paymentAttempt?.merchantOrderId || (event.payload as any).merchantOrderId
+          };
+
+          // Publish Minimized Payload into BullMQ Queue
+          await riskEventQueue.add(event.eventType, minimizedPayload, {
             jobId: event.id, // Idempotent Job ID matching DB Outbox Event ID
             removeOnComplete: true,
           });

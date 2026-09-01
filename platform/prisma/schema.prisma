@@ -128,6 +128,7 @@ model RiskEvent {
 
   validationStartedAt  DateTime?
   validationCompletedAt DateTime?
+  processingLeaseUntil DateTime?
 
   attemptCount         Int      @default(0)
 
