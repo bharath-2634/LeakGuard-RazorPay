@@ -1,16 +1,17 @@
 import crypto from 'crypto';
-import { prisma } from './src/infrastructure/db/prisma-client.js';
-import { bullmqRedisClient, riskEventQueue, riskEventWorker, OutboxPublisher } from './src/infrastructure/queue/bullmq-client.js';
+import { PrismaClient } from '@prisma/client';
+import { bullmqRedisClient, riskEventQueue, riskEventWorker } from './src/infrastructure/queue/bullmq-client.js';
 
 const RAILWAY_URL = 'https://leakguard-razorpay-production.up.railway.app';
 const REAL_RAZORPAY_KEY_ID = 'rzp_test_TWEQTS4vaQiKvB';
 const REAL_RAZORPAY_SECRET = 'JwG1G4hB3xIpuPuwa1bJG9mL';
+const DIRECT_DB_URL = 'postgresql://neondb_owner:npg_yzMGPcU9O8Nr@ep-orange-cell-axyxwxyj.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require&connect_timeout=30';
 
 async function runOutboxBullMQE2ETest() {
   console.log('\n================================================================================');
   console.log('🚀 TRANSACTIONAL OUTBOX & UPSTASH BULLMQ QUEUE E2E VERIFICATION TEST');
-  console.log('🌐 Target Production API: ', RAILWAY_URL);
-  console.log('🌐 Upstash Redis Queue:  ', 'together-octopus-214781.upstash.io');
+  console.log('🌐 Target Production API:  ', RAILWAY_URL);
+  console.log('🌐 Upstash Redis Queue:   ', 'together-octopus-214781.upstash.io');
   console.log('================================================================================\n');
 
   const merchantId = `m_outbox_store_${Date.now().toString().slice(-5)}`;
@@ -93,8 +94,10 @@ async function runOutboxBullMQE2ETest() {
 
   // 4. VERIFY NEON DB ATOMIC TRANSACTION (risk_events + outbox_events)
   console.log('\n📌 STEP 4: Inspecting Neon Cloud PostgreSQL Atomic Transaction Tables...');
+  const prismaClient = new PrismaClient({ datasources: { db: { url: DIRECT_DB_URL } } });
+
   try {
-    const riskEvent = await prisma.riskEvent.findFirst({
+    const riskEvent = await prismaClient.riskEvent.findFirst({
       where: { merchantId },
       orderBy: { emittedAt: 'desc' },
     });
@@ -102,7 +105,7 @@ async function runOutboxBullMQE2ETest() {
     console.log('\n🐘 [NEON DB] Table `risk_events` Record:');
     console.log(JSON.stringify(riskEvent, null, 2));
 
-    const outboxEvent = await prisma.outboxEvent.findFirst({
+    const outboxEvent = await prismaClient.outboxEvent.findFirst({
       where: { aggregateId: session.paymentAttemptId },
       orderBy: { createdAt: 'desc' },
     });
@@ -119,11 +122,13 @@ async function runOutboxBullMQE2ETest() {
 
   console.log('\n📌 STEP 6: Checking Outbox Event Processed Status in Neon DB...');
   try {
-    const processedOutbox = await prisma.outboxEvent.findFirst({
+    const processedOutbox = await prismaClient.outboxEvent.findFirst({
       where: { aggregateId: session.paymentAttemptId },
     });
     console.log('   Outbox Event Status:', processedOutbox?.status, 'Processed At:', processedOutbox?.processedAt);
   } catch (e: any) {}
+
+  await prismaClient.$disconnect();
 
   // CLEANUP QUEUE & WORKER
   await riskEventWorker.close();
