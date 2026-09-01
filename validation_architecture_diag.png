@@ -1,0 +1,61 @@
+# Validation & Recovery Diagnosis - Architecture
+
+```mermaid
+graph TD
+    %% External Inputs
+    Upstash[Upstash Redis <br> Queue: risk-validation]
+    
+    %% Worker Components
+    subgraph Validation Module
+        Worker[Validation Worker <br> src/application/validation-worker.ts]
+        Guard1{Processing Guard <br> Atomic Claim & Lease}
+        Guard2{Initial Resolution Guard <br> Check RevenueObligation}
+        Loader[Context Repository <br> Load DB Data]
+        
+        subgraph Pure Domain Engines
+            Diag[Diagnosis Engine <br> Precedence Rules]
+            Act[Actionability Engine <br> Math Score]
+            Prio[Priority Engine <br> Category Mapping]
+            Econ[Economic Engine <br> ERV & NER]
+        end
+        
+        FinalGuard{Final Resolution Guard <br> SELECT FOR UPDATE}
+        DBWriter[Result Persistence <br> Prisma $transaction]
+    end
+
+    %% Storage
+    DB[(Neon PostgreSQL)]
+    TableRE[RiskEvent]
+    TableRO[RevenueObligation]
+    TableVR[ValidationResult]
+    TableOB[OutboxEvent]
+
+    %% Flow
+    Upstash -- "Consumes Job (Minimal Payload)" --> Worker
+    Worker --> Guard1
+    Guard1 -- "Updates processingStatus" --> TableRE
+    Guard1 --> Guard2
+    Guard2 -- "Reads" --> TableRO
+    Guard2 -- "If UNRESOLVED" --> Loader
+    Loader -- "Fetches Context" --> DB
+    Loader --> Diag
+    Diag --> Act --> Prio --> Econ
+    Econ --> FinalGuard
+    FinalGuard -- "Row Lock" --> TableRO
+    FinalGuard --> DBWriter
+    
+    DBWriter -- "Writes Decision" --> TableVR
+    DBWriter -- "Updates Status" --> TableRE
+    DBWriter -- "If PROCEED, Handoff" --> TableOB
+```
+
+### Where is the outcome stored?
+The definitive outcome of this module is **always** stored in the `ValidationResult` table in your Neon PostgreSQL database.
+
+**Table: `ValidationResult`**
+*   **`decision`**: Either `PROCEED` (worth recovering) or `STOP` (not worth it).
+*   **`stopReason`**: If it stopped, it tells you exactly why (e.g., `ALREADY_RESOLVED`, `ACTIONABILITY_INSUFFICIENT`, `ECONOMICALLY_NOT_WORTHWHILE`).
+*   **Metrics**: Stores the exact `actionabilityScore`, `netExpectedRecovery`, `diagnosedCause`, and `priority` used to make the decision.
+
+**Table: `OutboxEvent`**
+*   If the decision was `PROCEED`, the worker *also* inserts a row into `OutboxEvent` with `eventType: VALIDATION_COMPLETED`. This is how the next module (Intervention Selection) knows to start working.
