@@ -78,12 +78,13 @@ export class CorrelationEngine {
     }
 
     if (!isResolved && newProviderState === 'FAILED') {
-      const errorObj = paymentObj.error_code || paymentObj.error_reason ? {
-        code: paymentObj.error_code,
-        description: paymentObj.error_description,
-        source: paymentObj.error_source,
-        step: paymentObj.error_step,
-        reason: paymentObj.error_reason,
+      const errEntity = paymentObj.error || {};
+      const errorObj = (paymentObj.error_code || paymentObj.error_reason || errEntity.code || errEntity.reason) ? {
+        code: paymentObj.error_code || errEntity.code,
+        description: paymentObj.error_description || errEntity.description,
+        source: paymentObj.error_source || errEntity.source,
+        step: paymentObj.error_step || errEntity.step,
+        reason: paymentObj.error_reason || errEntity.reason,
       } : undefined;
 
       const eventsList = attempt.paymentEvents || [];
