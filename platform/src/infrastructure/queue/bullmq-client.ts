@@ -74,7 +74,7 @@ export const OutboxPublisher = {
         try {
           // Minimize payload for Validation Worker
           const minimizedPayload = {
-            riskEventId: event.aggregateId,
+            riskEventId: (event.payload as any).riskEventId || event.aggregateId,
             paymentAttemptId: (event.payload as any).paymentAttempt?.id || (event.payload as any).paymentAttemptId,
             merchantId: (event.payload as any).merchant?.id || (event.payload as any).merchantId,
             merchantOrderId: (event.payload as any).paymentAttempt?.merchantOrderId || (event.payload as any).merchantOrderId
