@@ -9,18 +9,17 @@ datasource db {
 }
 
 model Merchant {
-  id                String            @id
+  id                String                 @id
   name              String
   domain            String
-  environment       String            @default("production") // production | test
-  defaultCurrency   String            @default("INR")
-  timezone          String            @default("UTC")
+  environment       String                 @default("production")
+  defaultCurrency   String                 @default("INR")
+  timezone          String                 @default("UTC")
   razorpayKeyId     String
-  razorpaySecretRef String            // AES-256-GCM encrypted
-  status            String            @default("ACTIVE")
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-
+  razorpaySecretRef String
+  status            String                 @default("ACTIVE")
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
   economics         MerchantEconomics?
   paymentAttempts   PaymentAttempt[]
   paymentEvents     PaymentEvent[]
@@ -33,22 +32,21 @@ model Merchant {
 model MerchantEconomics {
   id                       String   @id @default(uuid())
   merchantId               String   @unique
-  merchant                 Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   defaultMarginRate        Float    @default(0.20)
-  categoryEconomics        Json?    // category -> { margin_rate }
+  categoryEconomics        Json?
   minimumRecoveryThreshold Float    @default(0.0)
   maxRecoveryCost          Float    @default(0.0)
-  baseRecoveryCost         Float    @default(5.0)
   version                  Int      @default(1)
   updatedAt                DateTime @updatedAt
+  baseRecoveryCost         Float    @default(5.0)
+  merchant                 Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@map("merchant_economics")
 }
 
 model PaymentAttempt {
-  id                        String         @id // pa_...
+  id                        String         @id
   merchantId                String
-  merchant                  Merchant       @relation(fields: [merchantId], references: [id])
   customerId                String?
   sessionId                 String?
   merchantOrderId           String
@@ -56,22 +54,19 @@ model PaymentAttempt {
   razorpayPaymentId         String?
   amount                    Float
   currency                  String         @default("INR")
-  
-  // Historical Snapshots
-  customerSegment           String?
-  customerValueSegment      String?
-  historicalLtv             Float?
-  orderCategory             String?
-
-  providerState             String         @default("CREATED") // CREATED, AUTHORIZED, CAPTURED, FAILED
-  businessState             String         @default("UNRESOLVED") // UNRESOLVED, RESOLVED
+  providerState             String         @default("CREATED")
+  businessState             String         @default("UNRESOLVED")
   revenueObligationResolved Boolean        @default(false)
   startedAt                 DateTime       @default(now())
   resolvedAt                DateTime?
   expiresAt                 DateTime
   createdAt                 DateTime       @default(now())
   updatedAt                 DateTime       @updatedAt
-
+  customerSegment           String?
+  customerValueSegment      String?
+  historicalLtv             Float?
+  orderCategory             String?
+  merchant                  Merchant       @relation(fields: [merchantId], references: [id])
   paymentEvents             PaymentEvent[]
 
   @@index([merchantId, merchantOrderId])
@@ -84,15 +79,15 @@ model PaymentAttempt {
 model PaymentEvent {
   id               String         @id @default(uuid())
   paymentAttemptId String
-  paymentAttempt   PaymentAttempt @relation(fields: [paymentAttemptId], references: [id], onDelete: Cascade)
   merchantId       String
-  merchant         Merchant       @relation(fields: [merchantId], references: [id])
   eventType        String
-  source           String         // sdk | razorpay | merchant
+  source           String
   payload          Json
   occurredAt       DateTime
   receivedAt       DateTime       @default(now())
   correlationId    String?
+  merchant         Merchant       @relation(fields: [merchantId], references: [id])
+  paymentAttempt   PaymentAttempt @relation(fields: [paymentAttemptId], references: [id], onDelete: Cascade)
 
   @@index([paymentAttemptId])
   @@index([merchantId])
@@ -103,36 +98,32 @@ model RazorpayWebhookEvent {
   id              String    @id @default(uuid())
   razorpayEventId String    @unique
   merchantId      String
-  merchant        Merchant  @relation(fields: [merchantId], references: [id])
   eventType       String
   paymentId       String?
   orderId         String?
   payload         Json
   receivedAt      DateTime  @default(now())
   processedAt     DateTime?
-  status          String    @default("PENDING") // PENDING, PROCESSED, FAILED
+  status          String    @default("PENDING")
+  merchant        Merchant  @relation(fields: [merchantId], references: [id])
 
   @@map("razorpay_webhook_events")
 }
 
 model RiskEvent {
-  id                   String   @id @default(uuid())
-  paymentAttemptId     String
-  merchantId           String
-  merchant             Merchant @relation(fields: [merchantId], references: [id])
-  eventType            String   @default("PAYMENT_FAILURE_RISK")
-  payload              Json
-
-  processingStatus     String   @default("PENDING")
-  version              Int      @default(1)
-
-  validationStartedAt  DateTime?
+  id                    String    @id @default(uuid())
+  paymentAttemptId      String
+  merchantId            String
+  eventType             String    @default("PAYMENT_FAILURE_RISK")
+  payload               Json
+  emittedAt             DateTime  @default(now())
+  attemptCount          Int       @default(0)
+  processingStatus      String    @default("PENDING")
   validationCompletedAt DateTime?
-  processingLeaseUntil DateTime?
-
-  attemptCount         Int      @default(0)
-
-  emittedAt            DateTime @default(now())
+  validationStartedAt   DateTime?
+  version               Int       @default(1)
+  processingLeaseUntil  DateTime?
+  merchant              Merchant  @relation(fields: [merchantId], references: [id])
 
   @@index([paymentAttemptId])
   @@index([merchantId])
@@ -141,21 +132,18 @@ model RiskEvent {
 }
 
 model RevenueObligation {
-  id                         String   @id @default(uuid())
-  merchantId                 String
-  merchantOrderId            String
-  amount                     Float
-  currency                   String
-
-  status                     String   @default("UNRESOLVED")
-  successfulPaymentAttemptId String?
+  id                          String    @id @default(uuid())
+  merchantId                  String
+  merchantOrderId             String
+  amount                      Float
+  currency                    String
+  status                      String    @default("UNRESOLVED")
+  successfulPaymentAttemptId  String?
   successfulRazorpayPaymentId String?
-
-  resolvedAt                 DateTime?
-  version                    Int      @default(1)
-
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  resolvedAt                  DateTime?
+  version                     Int       @default(1)
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 
   @@unique([merchantId, merchantOrderId])
   @@index([merchantId, status])
@@ -164,35 +152,25 @@ model RevenueObligation {
 
 model ValidationResult {
   id                    String   @id @default(uuid())
-
   riskEventId           String   @unique
   paymentAttemptId      String
   merchantId            String
-
   diagnosedCause        String?
   diagnosisConfidence   Float?
-
   actionabilityScore    Float?
   actionabilityStatus   String?
-
   priority              String?
-
   revenueAtRisk         Float?
   economicFactor        Float?
   recoveryProbability   Float?
   recoveryCost          Float?
-
   expectedRecoveryValue Float?
   netExpectedRecovery   Float?
-
   decision              String?
   stopReason            String?
-
   evidence              Json?
-
   correlationId         String?
   rulesVersion          String?
-
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -205,7 +183,7 @@ model OutboxEvent {
   eventType   String    @map("event_type")
   aggregateId String?   @map("aggregate_id")
   payload     Json
-  status      String    @default("PENDING") // PENDING, PROCESSED, FAILED
+  status      String    @default("PENDING")
   attempts    Int       @default(0)
   lastError   String?   @map("last_error")
   createdAt   DateTime  @default(now()) @map("created_at")
