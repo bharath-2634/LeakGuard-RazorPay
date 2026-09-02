@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  validation-worker:
+    build: .
+    container_name: leakguard-validation
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://neondb_owner:npg_yzMGPcU9O8Nr@ep-orange-cell-axyxwxyj.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require&connect_timeout=30"
+      BULLMQ_REDIS_URL: "rediss://default:gQAAAAAAA0b9AAIgcDE3ODA4MGE2ZTI0ZjU0ZDc4OTk0MWI4NGViYTM3ZmNiNQ@together-octopus-214781.upstash.io:6379"
+      INTERVENTION_REDIS_URL: "rediss://default:gQAAAAAAAjo2AAIgcDJhOTEwY2NkMjE4Y2Q0YWZhODlhY2Q4MTJmOGNiZTYxYg@artistic-anchovy-145974.upstash.io:6379"

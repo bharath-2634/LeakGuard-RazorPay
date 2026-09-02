@@ -86,7 +86,6 @@ export const validationWorker = new Worker(
       economics = calculateEconomics(context.event, context.merchant, diagnosis);
     }
 
-    // --- PHASE 5: Result Persistence & Final Guard ---
     await executeFinalTransaction({
       riskEventId,
       paymentAttemptId,
@@ -97,14 +96,15 @@ export const validationWorker = new Worker(
       diagnosis,
       actionability,
       priority,
-      economics
+      economics,
+      context
     });
   },
   { connection: bullmqRedisClient }
 );
 
 async function executeFinalTransaction(data: any) {
-  const { riskEventId, paymentAttemptId, merchantId, merchantOrderId, diagnosis, actionability, priority, economics } = data;
+  const { riskEventId, paymentAttemptId, merchantId, merchantOrderId, diagnosis, actionability, priority, economics, context } = data;
   let { decision, stopReason } = data;
 
   await prisma.$transaction(async (tx) => {
@@ -165,7 +165,12 @@ async function executeFinalTransaction(data: any) {
             paymentAttemptId,
             merchantId,
             merchantOrderId,
-            version: 1
+            version: 1,
+            diagnosis,
+            actionability,
+            priority,
+            economics,
+            context
           },
           status: 'PENDING'
         }
