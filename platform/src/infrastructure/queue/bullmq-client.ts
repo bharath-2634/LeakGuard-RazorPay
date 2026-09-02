@@ -19,7 +19,8 @@ export const riskEventQueue = new Queue(QUEUE_NAME, {
   connection: bullmqRedisClient,
 });
 
-// BullMQ Worker processing Fat Event Payloads
+// BullMQ Worker processing Fat Event Payloads (Commented out to allow Validation Engine to consume)
+/*
 export const riskEventWorker = new Worker(
   QUEUE_NAME,
   async (job: Job) => {
@@ -45,6 +46,7 @@ riskEventWorker.on('completed', (job) => {
 riskEventWorker.on('failed', (job, err) => {
   console.error(`❌ [BULLMQ WORKER ERROR] Job #${job?.id} failed:`, err.message);
 });
+*/
 
 // Transactional Outbox Publisher / Relay
 export const OutboxPublisher = {
