@@ -2,7 +2,7 @@ import { runDiagnosis } from '../src/domain/diagnosis-engine.js';
 import { determineActionability } from '../src/domain/actionability-engine.js';
 import { calculateEconomics } from '../src/domain/economic-engine.js';
 import { EventContext, MerchantContext, DiagnosisResult } from '../src/domain/interfaces.js';
-import * as assert from 'assert';
+import assert from 'node:assert';
 
 function createDummyEvent(overrides: Partial<EventContext> = {}): EventContext {
   return {
