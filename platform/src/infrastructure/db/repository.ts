@@ -276,7 +276,7 @@ export const Repository = {
               riskEventId: undefined, // Filled later using the created ID
               paymentAttemptId: data.paymentAttemptId,
               merchantId: data.merchantId,
-              merchantOrderId: data.payload?.merchantOrderId || data.merchantOrderId,
+              merchantOrderId: data.payload?.merchant_order_id || data.merchantOrderId,
               eventVersion: 1,
             } as any,
             status: 'PENDING',
@@ -292,7 +292,7 @@ export const Repository = {
             riskEventId: riskResult.id,
             paymentAttemptId: data.paymentAttemptId,
             merchantId: data.merchantId,
-            merchantOrderId: data.payload?.merchantOrderId || data.merchantOrderId,
+            merchantOrderId: data.payload?.merchant_order_id || data.merchantOrderId,
             eventVersion: 1,
           } as any,
         }
