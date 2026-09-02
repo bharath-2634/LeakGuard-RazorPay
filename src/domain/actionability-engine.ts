@@ -1,5 +1,12 @@
 import { ActionabilityResult, DiagnosisResult, EventContext } from './interfaces.js';
 
+export function classifyActionabilityStatus(score: number): 'HIGHLY_ACTIONABLE' | 'ACTIONABLE' | 'UNCERTAIN' | 'INSUFFICIENT' {
+  if (score >= 90) return 'HIGHLY_ACTIONABLE';
+  if (score >= 75) return 'ACTIONABLE';
+  if (score >= 60) return 'UNCERTAIN';
+  return 'INSUFFICIENT';
+}
+
 export function determineActionability(diagnosis: DiagnosisResult, event: EventContext): ActionabilityResult {
   // Score mapping: 0.35E + 0.25S + 0.20C + 0.20R
   
@@ -30,11 +37,7 @@ export function determineActionability(diagnosis: DiagnosisResult, event: EventC
 
   const score = (0.35 * evidenceQuality) + (0.25 * specificity) + (0.20 * consistency) + (0.20 * recoveryMapping);
 
-  let status: 'HIGHLY_ACTIONABLE' | 'ACTIONABLE' | 'UNCERTAIN' | 'INSUFFICIENT';
-  if (score >= 90) status = 'HIGHLY_ACTIONABLE';
-  else if (score >= 75) status = 'ACTIONABLE';
-  else if (score >= 60) status = 'UNCERTAIN';
-  else status = 'INSUFFICIENT';
+  const status = classifyActionabilityStatus(score);
 
   return {
     score,

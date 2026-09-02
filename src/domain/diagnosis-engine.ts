@@ -2,6 +2,14 @@ import { DiagnosisResult, EventContext } from './interfaces.js';
 
 export function runDiagnosis(event: EventContext): DiagnosisResult {
   // 1. Provider Evidence (Razorpay) has highest precedence
+  if (event.errorSource === 'issuer' && event.errorReason === 'bank_technical_error') {
+    return {
+      diagnosedCause: 'ISSUER_TECHNICAL_FAILURE',
+      confidence: 0.99,
+      evidence: { sources: ['razorpay'], items: [{ source: 'issuer', reason: 'bank_technical_error' }] }
+    };
+  }
+
   if (event.errorReason) {
     let cause = 'UNKNOWN_PROVIDER_ERROR';
     if (event.errorReason === 'insufficient_funds') cause = 'INSUFFICIENT_FUNDS';
