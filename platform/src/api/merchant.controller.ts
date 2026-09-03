@@ -25,6 +25,14 @@ const createMerchantSchema = z.object({
       phone: z.string().optional(),
     }).optional(),
   }).optional(),
+  recoveryPolicy: z.object({
+    recoveryEnabled: z.boolean().default(true),
+    policies: z.record(z.object({
+      allowed: z.boolean().optional(),
+      maxAttempts: z.number().int().nonnegative().optional(),
+      coolOffSeconds: z.number().int().nonnegative().optional(),
+    })).optional(),
+  }).optional(),
 });
 
 const connectRazorpaySchema = z.object({
@@ -38,6 +46,30 @@ export async function createMerchant(req: Request, res: Response): Promise<void>
     const secretRef = encryptSecret(data.razorpayKeySecret);
 
     const allowedChannels = data.recoveryConfig?.allowedChannels || ['whatsapp', 'email'];
+    const policies = data.recoveryPolicy?.policies || {};
+    const policy = {
+      recoveryEnabled: data.recoveryPolicy?.recoveryEnabled ?? true,
+      retryAllowed: policies.RETRY_PAYMENT?.allowed,
+      retryMaxAttempts: policies.RETRY_PAYMENT?.maxAttempts,
+      retryCoolOffSeconds: policies.RETRY_PAYMENT?.coolOffSeconds,
+      smsAllowed: policies.SEND_SMS?.allowed,
+      smsMaxAttempts: policies.SEND_SMS?.maxAttempts,
+      smsCoolOffSeconds: policies.SEND_SMS?.coolOffSeconds,
+      whatsappAllowed: policies.SEND_WHATSAPP?.allowed,
+      whatsappMaxAttempts: policies.SEND_WHATSAPP?.maxAttempts,
+      whatsappCoolOffSeconds: policies.SEND_WHATSAPP?.coolOffSeconds,
+      emailAllowed: policies.SEND_EMAIL?.allowed,
+      emailMaxAttempts: policies.SEND_EMAIL?.maxAttempts,
+      emailCoolOffSeconds: policies.SEND_EMAIL?.coolOffSeconds,
+      paymentLinkAllowed: policies.SEND_PAYMENT_LINK?.allowed,
+      paymentLinkMaxAttempts: policies.SEND_PAYMENT_LINK?.maxAttempts,
+      paymentLinkCoolOffSeconds: policies.SEND_PAYMENT_LINK?.coolOffSeconds,
+      paymentMethodPromptAllowed: policies.CHANGE_PAYMENT_METHOD_PROMPT?.allowed,
+      paymentMethodPromptMaxAttempts: policies.CHANGE_PAYMENT_METHOD_PROMPT?.maxAttempts,
+      paymentMethodPromptCoolOffSeconds: policies.CHANGE_PAYMENT_METHOD_PROMPT?.coolOffSeconds,
+      humanReviewAllowed: policies.HUMAN_REVIEW?.allowed,
+      humanReviewMaxAttempts: policies.HUMAN_REVIEW?.maxAttempts,
+    };
 
     const merchant = await Repository.createMerchant({
       id: data.id,
@@ -66,6 +98,7 @@ export async function createMerchant(req: Request, res: Response): Promise<void>
           humanReviewPhone: data.recoveryConfig?.humanReview?.phone || null,
         },
       },
+      recoveryPolicy: { create: policy },
     });
 
     res.status(201).json({
@@ -82,6 +115,7 @@ export async function createMerchant(req: Request, res: Response): Promise<void>
         createdAt: merchant.createdAt,
         economics: merchant.economics,
         recoveryConfig: merchant.recoveryConfig,
+        recoveryPolicy: merchant.recoveryPolicy,
       },
     });
   } catch (error: any) {
@@ -139,6 +173,7 @@ export async function getMerchant(req: Request, res: Response): Promise<void> {
         createdAt: merchant.createdAt,
         updatedAt: merchant.updatedAt,
         economics: merchant.economics,
+        recoveryPolicy: merchant.recoveryPolicy,
       },
     });
   } catch (error: any) {

@@ -6,7 +6,7 @@ export const Repository = {
     if (process.env.DATABASE_URL) {
       const result = await prisma.merchant.create({
         data,
-        include: { economics: true, recoveryConfig: true },
+        include: { economics: true, recoveryConfig: true, recoveryPolicy: true },
       });
       console.log('🐘 [NEON DB SUCCESS] Created Merchant in Neon PostgreSQL:', result.id);
       return result;
@@ -37,6 +37,15 @@ export const Repository = {
             ...data.recoveryConfig.create,
           }
         : null,
+      recoveryPolicy: data.recoveryPolicy?.create
+        ? {
+            merchantId: data.id,
+            ...data.recoveryPolicy.create,
+            version: 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }
+        : null,
     };
     inMemoryStore.merchants.set(data.id, record);
     if (record.economics) {
@@ -64,7 +73,7 @@ export const Repository = {
     if (process.env.DATABASE_URL) {
       const m = await prisma.merchant.findUnique({
         where: { id },
-        include: { economics: true, recoveryConfig: true },
+        include: { economics: true, recoveryConfig: true, recoveryPolicy: true },
       });
       if (m) return m;
     }

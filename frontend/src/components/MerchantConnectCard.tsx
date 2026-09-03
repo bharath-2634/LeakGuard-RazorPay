@@ -23,6 +23,16 @@ interface MerchantConnectCardProps {
   platformUrl: string;
 }
 
+const POLICY_OPTIONS = [
+  { type: 'RETRY_PAYMENT', label: 'Retry payment', maxAttempts: 2, coolOffSeconds: 300 },
+  { type: 'SEND_SMS', label: 'Send SMS', maxAttempts: 3, coolOffSeconds: 1800 },
+  { type: 'SEND_WHATSAPP', label: 'Send WhatsApp', maxAttempts: 3, coolOffSeconds: 1800 },
+  { type: 'SEND_EMAIL', label: 'Send email', maxAttempts: 3, coolOffSeconds: 3600 },
+  { type: 'HUMAN_REVIEW', label: 'Human review', maxAttempts: 1, coolOffSeconds: 0 },
+  { type: 'SEND_PAYMENT_LINK', label: 'Send payment link', maxAttempts: 3, coolOffSeconds: 1800 },
+  { type: 'CHANGE_PAYMENT_METHOD_PROMPT', label: 'Change payment method prompt', maxAttempts: 3, coolOffSeconds: 1800 },
+] as const;
+
 const CATEGORY_OPTIONS = [
   { label: 'electrical', name: 'electrical' },
   { label: 'home appliances', name: 'home_appliances' },
@@ -122,14 +132,18 @@ export const MerchantConnectCard: React.FC<MerchantConnectCardProps> = ({
     }));
   };
 
-  // State for Recovery Actions & Human Review Email
-  const [allowedChannels, setAllowedChannels] = useState<string[]>(['whatsapp', 'email', 'sms', 'in-app notification']);
+  const [recoveryEnabled, setRecoveryEnabled] = useState(true);
+  const [policies, setPolicies] = useState<Record<string, { allowed: boolean; maxAttempts: number; coolOffSeconds: number }>>(
+    Object.fromEntries(POLICY_OPTIONS.map((option) => [option.type, {
+      allowed: true,
+      maxAttempts: option.maxAttempts,
+      coolOffSeconds: option.coolOffSeconds,
+    }]))
+  );
   const [humanReviewEmail, setHumanReviewEmail] = useState<string>('recovery@merchant.com');
 
-  const handleChannelToggle = (channel: string) => {
-    setAllowedChannels((prev) =>
-      prev.includes(channel) ? prev.filter((c) => c !== channel) : [...prev, channel]
-    );
+  const updatePolicy = (type: string, update: Partial<{ allowed: boolean; maxAttempts: number; coolOffSeconds: number }>) => {
+    setPolicies((prev) => ({ ...prev, [type]: { ...prev[type], ...update } }));
   };
 
   const handleConnect = async (e: React.FormEvent) => {
@@ -160,11 +174,18 @@ export const MerchantConnectCard: React.FC<MerchantConnectCardProps> = ({
           defaultMarginRate: merchantConfig.marginRate || 0.20,
           categoryEconomics: categoryEconomicsArray,
           recoveryConfig: {
-            allowedChannels: allowedChannels,
+            allowedChannels: ['whatsapp', 'email', 'sms', 'in-app notification'].filter((channel) => {
+              const type = channel === 'whatsapp' ? 'SEND_WHATSAPP' : channel === 'email' ? 'SEND_EMAIL' : channel === 'sms' ? 'SEND_SMS' : '';
+              return type ? policies[type]?.allowed : true;
+            }),
             humanReview: {
               enabled: !!humanReviewEmail,
               email: humanReviewEmail,
             },
+          },
+          recoveryPolicy: {
+            recoveryEnabled,
+            policies,
           },
         }),
       });
@@ -390,36 +411,39 @@ export const MerchantConnectCard: React.FC<MerchantConnectCardProps> = ({
             )}
           </div>
 
-          {/* RECOVERY ACTION CHANNELS CHECKLIST */}
+          {/* RECOVERY POLICY */}
           <div className="rounded-xl border border-white/10 bg-black/30 p-5">
             <h3 className="mb-2 text-sm font-semibold text-white flex items-center gap-2">
-              <CheckCircle2 size={16} className="text-blue-400" /> Which all ways your customers can get the intervention actions?
+              <CheckCircle2 size={16} className="text-blue-400" /> Intervention policy and execution boundaries
             </h3>
             <p className="mb-3 text-xs text-slate-400">
-              Select all authorized recovery communication channels enabled for your store.
+              Configure the merchant kill switch, per-intervention permission, frequency limit, and cool-off.
             </p>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-              {['whatsapp', 'sms', 'email', 'in-app notification'].map((channel) => {
-                const isSelected = allowedChannels.includes(channel);
+            <label className="mb-5 flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+              <input type="checkbox" checked={recoveryEnabled} onChange={(e) => setRecoveryEnabled(e.target.checked)} className="h-4 w-4" />
+              Recovery execution enabled
+            </label>
+
+            <div className="flex flex-col gap-3">
+              {POLICY_OPTIONS.map((option) => {
+                const policy = policies[option.type];
                 return (
-                  <label
-                    key={channel}
-                    onClick={() => handleChannelToggle(channel)}
-                    className={`flex items-center gap-2.5 rounded-lg border p-3 cursor-pointer transition-all select-none ${
-                      isSelected
-                        ? 'border-blue-500/50 bg-blue-500/10 text-white font-medium'
-                        : 'border-white/10 bg-black/20 text-slate-400 hover:bg-white/5'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => {}}
-                      className="h-4 w-4 rounded border-white/20 bg-slate-900 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="capitalize text-xs tracking-wide">{channel}</span>
-                  </label>
+                  <div key={option.type} className="grid grid-cols-1 gap-3 rounded-lg border border-white/10 bg-black/20 p-3 md:grid-cols-[1fr_auto_140px_160px] md:items-center">
+                    <span className="text-sm text-slate-200">{option.label}</span>
+                    <label className="flex items-center gap-2 text-xs text-slate-400">
+                      <input type="checkbox" checked={policy.allowed} onChange={(e) => updatePolicy(option.type, { allowed: e.target.checked })} className="h-4 w-4" />
+                      Allowed
+                    </label>
+                    <label className="text-xs text-slate-400">
+                      Max attempts
+                      <input type="number" min="0" value={policy.maxAttempts} onChange={(e) => updatePolicy(option.type, { maxAttempts: Number(e.target.value) })} className="mt-1 w-full rounded border border-white/10 bg-slate-900 px-2 py-1.5 text-sm text-white" />
+                    </label>
+                    <label className="text-xs text-slate-400">
+                      Cool-off seconds
+                      <input type="number" min="0" value={policy.coolOffSeconds} onChange={(e) => updatePolicy(option.type, { coolOffSeconds: Number(e.target.value) })} className="mt-1 w-full rounded border border-white/10 bg-slate-900 px-2 py-1.5 text-sm text-white" />
+                    </label>
+                  </div>
                 );
               })}
             </div>
