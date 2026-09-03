@@ -4,6 +4,8 @@ export interface EventContext {
     riskEventId: string;
     paymentAttemptId: string;
     merchantOrderId: string;
+    razorpayOrderId?: string;
+    razorpayPaymentId?: string;
     amount: number;
     currency: string;
     providerState: string;
@@ -22,6 +24,13 @@ export interface EventContext {
   
   export interface UserContext {
     customerId?: string | null;
+    customerRecord?: {
+      id: string;
+      externalCustomerId?: string | null;
+      name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    };
     customerSegment?: string | null;
     customerValueSegment?: string | null;
     historicalLtv?: number | null;
@@ -30,15 +39,25 @@ export interface EventContext {
   
   export interface MerchantContext {
     merchantId: string;
+    name?: string;
     currency: string;
     timezone: string;
     defaultMarginRate: number;
-    categoryEconomics: Record<string, any>;
+    categoryEconomics: any;
     baseRecoveryCost: number;
     minimumRecoveryThreshold: number;
     maxRecoveryCost: number;
     economicsVersion: number;
     orderCategory?: string | null;
+    recoveryConfig?: {
+      emailEnabled: boolean;
+      smsEnabled: boolean;
+      whatsappEnabled: boolean;
+      inAppNotificationEnabled: boolean;
+      humanReviewEnabled: boolean;
+      humanReviewEmail?: string | null;
+      version: number;
+    };
   }
   
   export interface ValidationContext {

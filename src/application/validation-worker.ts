@@ -153,25 +153,83 @@ async function executeFinalTransaction(data: any) {
       }
     });
 
-    // 4. Emmit Outbox Event (if PROCEED)
+    // 4. Emit Outbox Event (if PROCEED)
     if (decision === 'PROCEED') {
+      const recoveryContext = {
+        metadata: {
+          recoveryContextVersion: 'v1',
+          validationResultId: validationResult.id,
+          correlationId: riskEventId,
+          riskEventVersion: 1,
+          validationRulesVersion: 'v1'
+        },
+        event: {
+          riskEventId,
+          paymentAttemptId,
+          merchantId,
+          merchantOrderId,
+          amount: context.event.amount,
+          currency: context.event.currency
+        },
+        diagnosis: {
+          cause: diagnosis.diagnosedCause,
+          confidence: diagnosis.confidence,
+          actionabilityScore: actionability.score,
+          actionabilityStatus: actionability.status,
+          priority: priority
+        },
+        economics: {
+          revenueAtRisk: economics.revenueAtRisk,
+          economicFactor: economics.economicFactor,
+          recoveryProbability: economics.recoveryProbability,
+          recoveryCost: economics.recoveryCost,
+          expectedRecoveryValue: economics.expectedRecoveryValue,
+          netExpectedRecovery: economics.netExpectedRecovery,
+          minimumRecoveryThreshold: context.merchant.minimumRecoveryThreshold,
+          maxRecoveryCost: context.merchant.maxRecoveryCost
+        },
+        customer: {
+          id: context.user.customerRecord?.id || context.user.customerId || 'lg_customer_id',
+          externalCustomerId: context.user.customerRecord?.externalCustomerId || context.user.customerId || null,
+          name: context.user.customerRecord?.name || null,
+          email: context.user.customerRecord?.email || null,
+          phone: context.user.customerRecord?.phone || null
+        },
+        merchant: {
+          id: context.merchant.merchantId,
+          name: context.merchant.name || context.merchant.merchantId,
+          timezone: context.merchant.timezone,
+          defaultCurrency: context.merchant.currency,
+          recoveryConfig: {
+            emailEnabled: context.merchant.recoveryConfig?.emailEnabled ?? true,
+            smsEnabled: context.merchant.recoveryConfig?.smsEnabled ?? false,
+            whatsappEnabled: context.merchant.recoveryConfig?.whatsappEnabled ?? true,
+            inAppNotificationEnabled: context.merchant.recoveryConfig?.inAppNotificationEnabled ?? false,
+            humanReviewEnabled: context.merchant.recoveryConfig?.humanReviewEnabled ?? false,
+            humanReviewEmail: context.merchant.recoveryConfig?.humanReviewEmail || null,
+            version: context.merchant.recoveryConfig?.version ?? 1
+          }
+        },
+        payment: {
+          razorpayOrderId: context.event.razorpayOrderId || null,
+          razorpayPaymentId: context.event.razorpayPaymentId || null,
+          providerState: context.event.providerState,
+          businessState: 'UNRESOLVED'
+        },
+        order: {
+          merchantOrderId,
+          amount: context.event.amount,
+          currency: context.event.currency,
+          category: context.merchant.orderCategory || null
+        },
+        evidence: diagnosis.evidence || {}
+      };
+
       await tx.outboxEvent.create({
         data: {
           eventType: 'VALIDATION_COMPLETED',
           aggregateId: riskEventId,
-          payload: {
-            validationResultId: validationResult.id,
-            riskEventId,
-            paymentAttemptId,
-            merchantId,
-            merchantOrderId,
-            version: 1,
-            diagnosis,
-            actionability,
-            priority,
-            economics,
-            context
-          },
+          payload: recoveryContext as any,
           status: 'PENDING'
         }
       });
