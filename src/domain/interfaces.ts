@@ -15,6 +15,7 @@ export interface EventContext {
     errorStep?: string;
     errorReason?: string;
     errorDescription?: string;
+    causeEvidence?: any;
     journeyEvents: any[];
     timestamps: {
       startedAt: Date;

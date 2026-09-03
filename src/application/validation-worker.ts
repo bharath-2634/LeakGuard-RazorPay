@@ -120,29 +120,35 @@ async function executeFinalTransaction(data: any) {
       stopReason = 'ALREADY_RESOLVED';
     }
 
-    // 2. Persist ValidationResult
-    const validationResult = await tx.validationResult.create({
-      data: {
-        riskEventId,
-        paymentAttemptId,
-        merchantId,
-        diagnosedCause: diagnosis.diagnosedCause,
-        diagnosisConfidence: diagnosis.confidence,
-        evidence: diagnosis.evidence,
-        actionabilityScore: actionability.score,
-        actionabilityStatus: actionability.status,
-        priority: priority,
-        revenueAtRisk: economics.revenueAtRisk,
-        economicFactor: economics.economicFactor,
-        recoveryProbability: economics.recoveryProbability,
-        recoveryCost: economics.recoveryCost,
-        expectedRecoveryValue: economics.expectedRecoveryValue,
-        netExpectedRecovery: economics.netExpectedRecovery,
-        decision,
-        stopReason,
-        rulesVersion: 'v1.0.0'
-      }
+    // 2. Persist ValidationResult (Idempotent)
+    let validationResult = await tx.validationResult.findUnique({
+      where: { riskEventId }
     });
+
+    if (!validationResult) {
+      validationResult = await tx.validationResult.create({
+        data: {
+          riskEventId,
+          paymentAttemptId,
+          merchantId,
+          diagnosedCause: diagnosis.diagnosedCause,
+          diagnosisConfidence: diagnosis.confidence,
+          evidence: diagnosis.evidence,
+          actionabilityScore: actionability.score,
+          actionabilityStatus: actionability.status,
+          priority: priority,
+          revenueAtRisk: economics.revenueAtRisk,
+          economicFactor: economics.economicFactor,
+          recoveryProbability: economics.recoveryProbability,
+          recoveryCost: economics.recoveryCost,
+          expectedRecoveryValue: economics.expectedRecoveryValue,
+          netExpectedRecovery: economics.netExpectedRecovery,
+          decision,
+          stopReason,
+          rulesVersion: 'v1.0.0'
+        }
+      });
+    }
 
     // 3. Update RiskEvent Status
     await tx.riskEvent.update({
@@ -234,7 +240,7 @@ async function executeFinalTransaction(data: any) {
         }
       });
     }
-  });
+  }, { timeout: 20000 });
 }
 
 validationWorker.on('completed', (job) => {
@@ -243,3 +249,44 @@ validationWorker.on('completed', (job) => {
 validationWorker.on('failed', (job, err) => {
   console.error(`❌ [Validation Worker] Job #${job?.id} failed:`, err.message);
 });
+
+export async function processRiskEventDirectly(params: {
+  riskEventId: string;
+  paymentAttemptId: string;
+  merchantId: string;
+  merchantOrderId: string;
+}) {
+  const { riskEventId, paymentAttemptId, merchantId, merchantOrderId } = params;
+  const context = await loadValidationData({ riskEventId, paymentAttemptId, merchantId, merchantOrderId });
+  const diagnosis = runDiagnosis(context.event);
+  const actionability = determineActionability(diagnosis, context.event);
+  const priority = determinePriority(diagnosis);
+  
+  let decision: 'PROCEED' | 'STOP' = 'PROCEED';
+  let stopReason: string | undefined;
+
+  if (actionability.status === 'INSUFFICIENT' || actionability.status === 'UNCERTAIN') {
+    decision = 'STOP';
+    stopReason = 'ACTIONABILITY_INSUFFICIENT';
+  }
+
+  let economics = calculateEconomics(context.event, context.merchant, diagnosis);
+  if (decision === 'PROCEED' && economics.decision === 'STOP') {
+    decision = 'STOP';
+    stopReason = economics.stopReason;
+  }
+
+  await executeFinalTransaction({
+    riskEventId,
+    paymentAttemptId,
+    merchantId,
+    merchantOrderId,
+    decision,
+    stopReason,
+    diagnosis,
+    actionability,
+    priority,
+    economics,
+    context
+  });
+}

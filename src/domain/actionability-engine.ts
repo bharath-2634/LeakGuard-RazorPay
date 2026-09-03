@@ -21,18 +21,19 @@ export function determineActionability(diagnosis: DiagnosisResult, event: EventC
   let specificity = 0;
   if (diagnosis.diagnosedCause === 'INSUFFICIENT_FUNDS') specificity = 100;
   else if (diagnosis.diagnosedCause === '3DS_OTP_ABANDONMENT') specificity = 95;
+  else if (diagnosis.diagnosedCause === 'ISSUER_TECHNICAL_FAILURE') specificity = 90;
   else if (diagnosis.diagnosedCause === 'CUSTOMER_ABANDONMENT') specificity = 80;
-  else specificity = 50;
+  else specificity = 60;
 
   // Consistency (C)
   let consistency = diagnosis.confidence * 100;
 
   // Recovery Mapping (R)
   let recoveryMapping = 0;
-  if (['INSUFFICIENT_FUNDS', '3DS_OTP_ABANDONMENT', 'CUSTOMER_ABANDONMENT'].includes(diagnosis.diagnosedCause)) {
+  if (['INSUFFICIENT_FUNDS', '3DS_OTP_ABANDONMENT', 'CUSTOMER_ABANDONMENT', 'ISSUER_TECHNICAL_FAILURE', 'PAYMENT_FAILED'].includes(diagnosis.diagnosedCause)) {
     recoveryMapping = 95;
   } else {
-    recoveryMapping = 40;
+    recoveryMapping = 50;
   }
 
   const score = (0.35 * evidenceQuality) + (0.25 * specificity) + (0.20 * consistency) + (0.20 * recoveryMapping);

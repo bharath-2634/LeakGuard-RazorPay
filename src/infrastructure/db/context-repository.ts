@@ -9,28 +9,27 @@ export async function loadValidationData(params: {
 }): Promise<ValidationContext> {
   const { riskEventId, paymentAttemptId, merchantId, merchantOrderId } = params;
 
-  // Query risk event, attempt, merchant, economics, recoveryConfig, customer in parallel
-  const [
-    riskEvent,
-    paymentAttempt,
-    merchant,
-    economics,
-    recoveryConfig,
-    paymentEvents,
-    webhookEvents
-  ] = await Promise.all([
-    prisma.riskEvent.findUnique({ where: { id: riskEventId } }),
-    prisma.paymentAttempt.findUnique({ where: { id: paymentAttemptId } }),
-    prisma.merchant.findUnique({ where: { id: merchantId } }),
-    prisma.merchantEconomics.findUnique({ where: { merchantId } }),
-    prisma.merchantRecoveryConfig.findUnique({ where: { merchantId } }),
-    prisma.paymentEvent.findMany({ where: { paymentAttemptId }, orderBy: { occurredAt: 'asc' } }),
-    prisma.razorpayWebhookEvent.findMany({ where: { merchantId, orderId: merchantOrderId }, orderBy: { receivedAt: 'asc' } })
-  ]);
+  const riskEvent = await prisma.riskEvent.findUnique({ where: { id: riskEventId } });
+  const paymentAttempt = await prisma.paymentAttempt.findUnique({ where: { id: paymentAttemptId } });
+  const merchant = await prisma.merchant.findUnique({ where: { id: merchantId } });
+  const economics = await prisma.merchantEconomics.findUnique({ where: { merchantId } });
+  const recoveryConfig = await prisma.merchantRecoveryConfig.findUnique({ where: { merchantId } });
+  const paymentEvents = await prisma.paymentEvent.findMany({ where: { paymentAttemptId }, orderBy: { occurredAt: 'asc' } });
 
   if (!riskEvent || !paymentAttempt || !merchant) {
     throw new Error(`Critical validation data missing for RiskEvent ${riskEventId}`);
   }
+
+  const webhookEvents = await prisma.razorpayWebhookEvent.findMany({
+    where: {
+      merchantId,
+      OR: [
+        { orderId: merchantOrderId },
+        { orderId: paymentAttempt.razorpayOrderId || '' }
+      ]
+    },
+    orderBy: { receivedAt: 'asc' }
+  });
 
   let customer = null;
   if (paymentAttempt.customerId) {
@@ -69,6 +68,7 @@ export async function loadValidationData(params: {
     errorStep,
     errorReason,
     errorDescription,
+    causeEvidence: (riskEvent.payload as any)?.cause_evidence,
     journeyEvents: paymentEvents.map((e: any) => e.payload),
     timestamps: {
       startedAt: paymentAttempt.startedAt,

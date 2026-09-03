@@ -1,7 +1,20 @@
 import { DiagnosisResult, EventContext } from './interfaces.js';
 
 export function runDiagnosis(event: EventContext): DiagnosisResult {
-  // 1. Provider Evidence (Razorpay) has highest precedence
+  // 1. Correlator evidence directly from payload
+  if (event.causeEvidence?.candidate_causes?.length > 0) {
+    const primaryCause = event.causeEvidence.candidate_causes[0];
+    return {
+      diagnosedCause: primaryCause,
+      confidence: event.causeEvidence.confidence || 0.95,
+      evidence: {
+        sources: ['correlator'],
+        items: event.causeEvidence.supporting_evidence || [{ cause: primaryCause }]
+      }
+    };
+  }
+
+  // 2. Provider Evidence (Razorpay) has highest precedence
   if (event.errorSource === 'issuer' && event.errorReason === 'bank_technical_error') {
     return {
       diagnosedCause: 'ISSUER_TECHNICAL_FAILURE',

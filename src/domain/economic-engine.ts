@@ -9,7 +9,15 @@ export function calculateEconomics(
   
   // Economic Factor (M)
   const category = merchant.orderCategory || 'default';
-  const categoryMargin = merchant.categoryEconomics?.[category]?.margin_rate;
+  let categoryMargin: number | undefined;
+  if (Array.isArray(merchant.categoryEconomics)) {
+    const matched = merchant.categoryEconomics.find((c: any) => c.category === category || c.name === category);
+    if (matched) categoryMargin = typeof matched.marginRate === 'number' ? matched.marginRate : matched.margin_rate;
+  } else if (merchant.categoryEconomics && typeof merchant.categoryEconomics === 'object') {
+    const item = merchant.categoryEconomics[category];
+    if (typeof item === 'number') categoryMargin = item;
+    else if (item) categoryMargin = item.marginRate ?? item.margin_rate;
+  }
   const economicFactor = typeof categoryMargin === 'number' ? categoryMargin : merchant.defaultMarginRate;
 
   // Recovery Probability (P_recovery) baseline
