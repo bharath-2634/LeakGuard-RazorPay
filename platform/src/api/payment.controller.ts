@@ -15,6 +15,15 @@ const createPaymentSessionSchema = z.object({
   customerId: z.string().optional(),
   sessionId: z.string().optional(),
   orderCategory: z.string().optional(),
+  customer: z.object({
+    id: z.string().optional(),
+    name: z.string().optional(),
+    email: z.string().optional(),
+    phone: z.string().optional(),
+  }).optional(),
+  customerName: z.string().optional(),
+  customerEmail: z.string().optional(),
+  customerPhone: z.string().optional(),
   customerContext: z.object({
     customerSegment: z.string().optional(),
     customerValueSegment: z.string().optional(),
@@ -62,10 +71,18 @@ export async function createPaymentSession(req: Request, res: Response): Promise
     const paymentAttemptId = `pa_${uuidv4().replace(/-/g, '').substring(0, 16)}`;
     const expiresAt = new Date(Date.now() + config.defaultSessionTtlSeconds * 1000);
 
+    const customerObj = data.customer || (data.customerId ? {
+      id: data.customerId,
+      name: data.customerName,
+      email: data.customerEmail,
+      phone: data.customerPhone,
+    } : undefined);
+
     const paymentAttempt = await Repository.createPaymentSession({
       id: paymentAttemptId,
       merchantId: merchant.id,
-      customerId: data.customerId || null,
+      customerId: data.customerId || data.customer?.id || null,
+      customer: customerObj,
       sessionId: data.sessionId || null,
       merchantOrderId: data.merchantOrderId,
       razorpayOrderId,

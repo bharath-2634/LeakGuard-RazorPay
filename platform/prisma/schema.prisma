@@ -22,6 +22,8 @@ model Merchant {
   updatedAt         DateTime          @updatedAt
 
   economics         MerchantEconomics?
+  recoveryConfig    MerchantRecoveryConfig?
+  customers         Customer[]
   paymentAttempts   PaymentAttempt[]
   paymentEvents     PaymentEvent[]
   webhookEvents     RazorpayWebhookEvent[]
@@ -35,7 +37,7 @@ model MerchantEconomics {
   merchantId               String   @unique
   merchant                 Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   defaultMarginRate        Float    @default(0.20)
-  categoryEconomics        Json?    // category -> { margin_rate }
+  categoryEconomics        Json?    // Array of { category: string, marginRate: number }
   minimumRecoveryThreshold Float    @default(0.0)
   maxRecoveryCost          Float    @default(0.0)
   baseRecoveryCost         Float    @default(5.0)
@@ -45,11 +47,54 @@ model MerchantEconomics {
   @@map("merchant_economics")
 }
 
+model MerchantRecoveryConfig {
+  id                       String   @id @default(uuid())
+  merchantId               String   @unique
+  merchant                 Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  emailEnabled             Boolean  @default(false)
+  smsEnabled               Boolean  @default(false)
+  whatsappEnabled          Boolean  @default(false)
+  inAppNotificationEnabled Boolean  @default(false)
+
+  humanReviewEnabled       Boolean  @default(false)
+  humanReviewEmail         String?
+  humanReviewPhone         String?
+
+  version                  Int      @default(1)
+
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@map("merchant_recovery_configs")
+}
+
+model Customer {
+  id                 String   @id @default(uuid())
+  merchantId         String
+  merchant           Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  externalCustomerId String?
+  name               String?
+  email              String?
+  phone              String?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  paymentAttempts    PaymentAttempt[]
+
+  @@unique([merchantId, externalCustomerId])
+  @@index([merchantId])
+  @@map("customers")
+}
+
 model PaymentAttempt {
   id                        String         @id // pa_...
   merchantId                String
   merchant                  Merchant       @relation(fields: [merchantId], references: [id])
   customerId                String?
+  customer                  Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
   sessionId                 String?
   merchantOrderId           String
   razorpayOrderId           String?

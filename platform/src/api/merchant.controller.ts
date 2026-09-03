@@ -13,7 +13,18 @@ const createMerchantSchema = z.object({
   razorpayKeyId: z.string().min(1),
   razorpayKeySecret: z.string().min(1),
   defaultMarginRate: z.number().min(0).max(1).optional().default(0.20),
-  categoryEconomics: z.record(z.object({ margin_rate: z.number() })).optional(),
+  categoryEconomics: z.array(z.object({
+    category: z.string(),
+    marginRate: z.number(),
+  })).optional(),
+  recoveryConfig: z.object({
+    allowedChannels: z.array(z.string()).optional(),
+    humanReview: z.object({
+      enabled: z.boolean().optional(),
+      email: z.string().optional(),
+      phone: z.string().optional(),
+    }).optional(),
+  }).optional(),
 });
 
 const connectRazorpaySchema = z.object({
@@ -25,6 +36,8 @@ export async function createMerchant(req: Request, res: Response): Promise<void>
   try {
     const data = createMerchantSchema.parse(req.body);
     const secretRef = encryptSecret(data.razorpayKeySecret);
+
+    const allowedChannels = data.recoveryConfig?.allowedChannels || ['whatsapp', 'email'];
 
     const merchant = await Repository.createMerchant({
       id: data.id,
@@ -39,7 +52,18 @@ export async function createMerchant(req: Request, res: Response): Promise<void>
       economics: {
         create: {
           defaultMarginRate: data.defaultMarginRate,
-          categoryEconomics: data.categoryEconomics || {},
+          categoryEconomics: data.categoryEconomics || [],
+        },
+      },
+      recoveryConfig: {
+        create: {
+          emailEnabled: allowedChannels.includes('email'),
+          smsEnabled: allowedChannels.includes('sms'),
+          whatsappEnabled: allowedChannels.includes('whatsapp'),
+          inAppNotificationEnabled: allowedChannels.includes('in-app notification'),
+          humanReviewEnabled: data.recoveryConfig?.humanReview?.enabled ?? (!!data.recoveryConfig?.humanReview?.email),
+          humanReviewEmail: data.recoveryConfig?.humanReview?.email || null,
+          humanReviewPhone: data.recoveryConfig?.humanReview?.phone || null,
         },
       },
     });
@@ -57,6 +81,7 @@ export async function createMerchant(req: Request, res: Response): Promise<void>
         status: merchant.status,
         createdAt: merchant.createdAt,
         economics: merchant.economics,
+        recoveryConfig: merchant.recoveryConfig,
       },
     });
   } catch (error: any) {

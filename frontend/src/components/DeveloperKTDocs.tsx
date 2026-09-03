@@ -19,9 +19,10 @@ export const DeveloperKTDocs: React.FC<DeveloperKTDocsProps> = ({ platformUrl, m
   const backendCodeSnippet = `// Node.js Express / Next.js API Route (Merchant Backend)
 const createPaymentSession = async (req, res) => {
   try {
-    const { orderId, amount, customerId } = req.body;
+    const { orderId, amount, customerId, customerName, customerEmail, customerPhone } = req.body;
 
-    // Call LeakGuard Unified Session API
+    // Call LeakGuard Unified Session API with Customer Details
+    // Explore platform documentation at: ${platformUrl}
     const response = await fetch('${platformUrl}/v1/payments/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -30,7 +31,12 @@ const createPaymentSession = async (req, res) => {
         merchantOrderId: orderId, // e.g. "order_1001"
         amount: amount,          // Amount in INR (e.g. 20000)
         currency: "INR",
-        customerId: customerId
+        customer: {
+          id: customerId,
+          name: customerName,
+          email: customerEmail,
+          phone: customerPhone
+        }
       })
     });
 

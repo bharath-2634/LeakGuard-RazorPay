@@ -6,7 +6,7 @@ export const Repository = {
     if (process.env.DATABASE_URL) {
       const result = await prisma.merchant.create({
         data,
-        include: { economics: true },
+        include: { economics: true, recoveryConfig: true },
       });
       console.log('🐘 [NEON DB SUCCESS] Created Merchant in Neon PostgreSQL:', result.id);
       return result;
@@ -28,7 +28,13 @@ export const Repository = {
         ? {
             merchantId: data.id,
             defaultMarginRate: data.economics.create.defaultMarginRate,
-            categoryEconomics: data.economics.create.categoryEconomics || {},
+            categoryEconomics: data.economics.create.categoryEconomics || [],
+          }
+        : null,
+      recoveryConfig: data.recoveryConfig?.create
+        ? {
+            merchantId: data.id,
+            ...data.recoveryConfig.create,
           }
         : null,
     };
@@ -44,7 +50,7 @@ export const Repository = {
       return await prisma.merchant.update({
         where: { id },
         data: updates,
-        include: { economics: true },
+        include: { economics: true, recoveryConfig: true },
       });
     }
     const current = inMemoryStore.merchants.get(id);
@@ -58,15 +64,116 @@ export const Repository = {
     if (process.env.DATABASE_URL) {
       const m = await prisma.merchant.findUnique({
         where: { id },
-        include: { economics: true },
+        include: { economics: true, recoveryConfig: true },
       });
       if (m) return m;
     }
     return inMemoryStore.merchants.get(id) || null;
   },
 
+  // CUSTOMERS
+  async upsertCustomer(merchantId: string, customerData?: { id?: string; externalCustomerId?: string; name?: string; email?: string; phone?: string }) {
+    if (!customerData) return null;
+
+    const externalId = customerData.externalCustomerId || customerData.id;
+    if (!externalId) return null;
+
+    if (process.env.DATABASE_URL) {
+      // Find existing customer
+      const existing = await prisma.customer.findUnique({
+        where: {
+          merchantId_externalCustomerId: {
+            merchantId,
+            externalCustomerId: externalId,
+          },
+        },
+      });
+
+      if (existing) {
+        // Non-destructive update: only update fields if new value is non-null/non-undefined
+        const updates: any = {};
+        if (customerData.name && customerData.name.trim() !== '') updates.name = customerData.name;
+        if (customerData.email && customerData.email.trim() !== '') updates.email = customerData.email;
+        if (customerData.phone && customerData.phone.trim() !== '') updates.phone = customerData.phone;
+
+        if (Object.keys(updates).length > 0) {
+          return await prisma.customer.update({
+            where: { id: existing.id },
+            data: updates,
+          });
+        }
+        return existing;
+      }
+
+      // Create new customer
+      return await prisma.customer.create({
+        data: {
+          merchantId,
+          externalCustomerId: externalId,
+          name: customerData.name || null,
+          email: customerData.email || null,
+          phone: customerData.phone || null,
+        },
+      });
+    }
+
+    // In-memory fallback
+    const key = `${merchantId}:${externalId}`;
+    const existing = inMemoryStore.merchants.get(`cust_${key}`);
+    if (existing) {
+      if (customerData.name) existing.name = customerData.name;
+      if (customerData.email) existing.email = customerData.email;
+      if (customerData.phone) existing.phone = customerData.phone;
+      return existing;
+    }
+
+    const newCust = {
+      id: `cust_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      merchantId,
+      externalCustomerId: externalId,
+      name: customerData.name || null,
+      email: customerData.email || null,
+      phone: customerData.phone || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    inMemoryStore.merchants.set(`cust_${key}`, newCust);
+    return newCust;
+  },
+
   // PAYMENT ATTEMPTS
   async createPaymentSession(data: any) {
+    let customerRecord = null;
+    if (data.customer) {
+      customerRecord = await this.upsertCustomer(data.merchantId, data.customer);
+    } else if (data.customerId) {
+      customerRecord = await this.upsertCustomer(data.merchantId, {
+        id: data.customerId,
+        name: data.customerName,
+        email: data.customerEmail,
+        phone: data.customerPhone,
+      });
+    }
+
+    const paymentAttemptData = {
+      id: data.id,
+      merchantId: data.merchantId,
+      customerId: customerRecord?.id || null,
+      sessionId: data.sessionId || null,
+      merchantOrderId: data.merchantOrderId,
+      razorpayOrderId: data.razorpayOrderId || null,
+      razorpayPaymentId: data.razorpayPaymentId || null,
+      amount: data.amount,
+      currency: data.currency || 'INR',
+      customerSegment: data.customerSegment || null,
+      customerValueSegment: data.customerValueSegment || null,
+      historicalLtv: data.historicalLtv || null,
+      orderCategory: data.orderCategory || null,
+      providerState: data.providerState || 'CREATED',
+      businessState: data.businessState || 'UNRESOLVED',
+      expiresAt: data.expiresAt || new Date(Date.now() + 3600 * 1000),
+    };
+
     if (process.env.DATABASE_URL) {
       // Create/find RevenueObligation and create PaymentAttempt
       const result = await prisma.$transaction(async (tx) => {
@@ -86,13 +193,13 @@ export const Repository = {
               merchantId: data.merchantId,
               merchantOrderId: data.merchantOrderId,
               amount: data.amount,
-              currency: data.currency,
+              currency: data.currency || 'INR',
               status: 'UNRESOLVED',
             },
           });
         }
 
-        const pa = await tx.paymentAttempt.create({ data });
+        const pa = await tx.paymentAttempt.create({ data: paymentAttemptData });
         return pa;
       });
       console.log('🐘 [NEON DB SUCCESS] Created PaymentAttempt & Obligation in Neon PostgreSQL:', result.id);
@@ -101,7 +208,7 @@ export const Repository = {
     
     // Fallback
     const record = {
-      ...data,
+      ...paymentAttemptData,
       startedAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),

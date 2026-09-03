@@ -122,17 +122,27 @@ export const MerchantConnectCard: React.FC<MerchantConnectCardProps> = ({
     }));
   };
 
+  // State for Recovery Actions & Human Review Email
+  const [allowedChannels, setAllowedChannels] = useState<string[]>(['whatsapp', 'email', 'sms', 'in-app notification']);
+  const [humanReviewEmail, setHumanReviewEmail] = useState<string>('recovery@merchant.com');
+
+  const handleChannelToggle = (channel: string) => {
+    setAllowedChannels((prev) =>
+      prev.includes(channel) ? prev.filter((c) => c !== channel) : [...prev, channel]
+    );
+  };
+
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    // Format category economics mapping
-    const categoryEconomicsObj: Record<string, { margin_rate: number }> = {};
-    merchantConfig.categoryTags.forEach((tag) => {
-      categoryEconomicsObj[tag.name] = { margin_rate: tag.numeric_rate };
-    });
+    // Format category economics array with numeric marginRate
+    const categoryEconomicsArray = merchantConfig.categoryTags.map((tag) => ({
+      category: tag.name,
+      marginRate: tag.numeric_rate,
+    }));
 
     try {
       const response = await fetch(`${platformUrl}/v1/merchants`, {
@@ -148,7 +158,14 @@ export const MerchantConnectCard: React.FC<MerchantConnectCardProps> = ({
           razorpayKeyId: merchantConfig.razorpayKeyId,
           razorpayKeySecret: merchantConfig.razorpayKeySecret,
           defaultMarginRate: merchantConfig.marginRate || 0.20,
-          categoryEconomics: categoryEconomicsObj,
+          categoryEconomics: categoryEconomicsArray,
+          recoveryConfig: {
+            allowedChannels: allowedChannels,
+            humanReview: {
+              enabled: !!humanReviewEmail,
+              email: humanReviewEmail,
+            },
+          },
         }),
       });
 
@@ -168,8 +185,8 @@ export const MerchantConnectCard: React.FC<MerchantConnectCardProps> = ({
   };
 
   const formattedOutputJson = merchantConfig.categoryTags.map((t) => ({
-    name: t.name,
-    marginal_rate: t.marginal_rate,
+    category: t.name,
+    marginRate: t.numeric_rate,
   }));
 
   return (
@@ -371,6 +388,55 @@ export const MerchantConnectCard: React.FC<MerchantConnectCardProps> = ({
                 </pre>
               </div>
             )}
+          </div>
+
+          {/* RECOVERY ACTION CHANNELS CHECKLIST */}
+          <div className="rounded-xl border border-white/10 bg-black/30 p-5">
+            <h3 className="mb-2 text-sm font-semibold text-white flex items-center gap-2">
+              <CheckCircle2 size={16} className="text-blue-400" /> Which all ways your customers can get the intervention actions?
+            </h3>
+            <p className="mb-3 text-xs text-slate-400">
+              Select all authorized recovery communication channels enabled for your store.
+            </p>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+              {['whatsapp', 'sms', 'email', 'in-app notification'].map((channel) => {
+                const isSelected = allowedChannels.includes(channel);
+                return (
+                  <label
+                    key={channel}
+                    onClick={() => handleChannelToggle(channel)}
+                    className={`flex items-center gap-2.5 rounded-lg border p-3 cursor-pointer transition-all select-none ${
+                      isSelected
+                        ? 'border-blue-500/50 bg-blue-500/10 text-white font-medium'
+                        : 'border-white/10 bg-black/20 text-slate-400 hover:bg-white/5'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => {}}
+                      className="h-4 w-4 rounded border-white/20 bg-slate-900 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="capitalize text-xs tracking-wide">{channel}</span>
+                  </label>
+                );
+              })}
+            </div>
+
+            {/* HUMAN INTERVENTION REVIEW EMAIL */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-300">
+                Email of your business team to check the human intervention list if needed?
+              </label>
+              <input
+                type="email"
+                className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                placeholder="recovery-team@yourbusiness.com"
+                value={humanReviewEmail}
+                onChange={(e) => setHumanReviewEmail(e.target.value)}
+              />
+            </div>
           </div>
 
           {/* Security Guarantee Box */}
