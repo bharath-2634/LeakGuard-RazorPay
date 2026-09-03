@@ -30,6 +30,7 @@ model Merchant {
   riskEvents        RiskEvent[]
   recoveryPolicy    MerchantRecoveryPolicy?
   recoveryAttempts  RecoveryAttempt[]
+  policyEvaluations  RecoveryPolicyEvaluation[]
 
   @@map("merchants")
 }
@@ -127,6 +128,36 @@ model RecoveryAttempt {
   @@map("recovery_attempts")
 }
 
+model RecoveryPolicyEvaluation {
+  id                       String   @id @default(cuid())
+  merchantId               String
+  paymentAttemptId         String
+  riskEventId              String?
+  validationResultId       String?
+  interventionType         String
+  decision                 String
+  policyVersion            String
+  maxAttempts              Int
+  attemptsUsed             Int
+  attemptsRemaining        Int
+  coolOffSeconds            Int
+  secondsSinceLastAttempt  Int?
+  killSwitchStatus          String
+  complianceStatus          String
+  frequencyStatus           String
+  coolOffStatus             String
+  rejectionReasons          Json?
+  policySnapshot            Json?
+  evaluatedAt               DateTime @default(now())
+  merchant                  Merchant @relation(fields: [merchantId], references: [id])
+  paymentAttempt            PaymentAttempt @relation(fields: [paymentAttemptId], references: [id])
+
+  @@index([paymentAttemptId, evaluatedAt])
+  @@index([paymentAttemptId, interventionType])
+  @@index([merchantId, evaluatedAt])
+  @@map("recovery_policy_evaluations")
+}
+
 model Customer {
   id                 String   @id @default(uuid())
   merchantId         String
@@ -177,6 +208,7 @@ model PaymentAttempt {
 
   paymentEvents             PaymentEvent[]
   recoveryAttempts          RecoveryAttempt[]
+  policyEvaluations         RecoveryPolicyEvaluation[]
 
   @@index([merchantId, merchantOrderId])
   @@index([merchantId, customerId])
