@@ -14,6 +14,12 @@ export async function loadValidationData(params: {
   const merchant = await prisma.merchant.findUnique({ where: { id: merchantId } });
   const economics = await prisma.merchantEconomics.findUnique({ where: { merchantId } });
   const recoveryConfig = await prisma.merchantRecoveryConfig.findUnique({ where: { merchantId } });
+  const recoveryPolicy = await prisma.merchantRecoveryPolicy.findUnique({ where: { merchantId } });
+  const previousRecoveryAttempts = await prisma.recoveryAttempt.findMany({
+    where: { merchantId, paymentAttemptId },
+    orderBy: { attemptedAt: 'asc' },
+    select: { interventionType: true, status: true, attemptedAt: true, completedAt: true },
+  });
   const paymentEvents = await prisma.paymentEvent.findMany({ where: { paymentAttemptId }, orderBy: { occurredAt: 'asc' } });
 
   if (!riskEvent || !paymentAttempt || !merchant) {
@@ -112,11 +118,23 @@ export async function loadValidationData(params: {
       humanReviewEmail: recoveryConfig.humanReviewEmail,
       version: recoveryConfig.version,
     } : undefined,
+    recoveryPolicy: recoveryPolicy ? {
+      recoveryEnabled: recoveryPolicy.recoveryEnabled,
+      version: `merchant-v${recoveryPolicy.version}`,
+      RETRY_PAYMENT: { allowed: recoveryPolicy.retryAllowed ?? undefined, maxAttempts: recoveryPolicy.retryMaxAttempts ?? undefined, coolOffSeconds: recoveryPolicy.retryCoolOffSeconds ?? undefined },
+      SEND_SMS: { allowed: recoveryPolicy.smsAllowed ?? undefined, maxAttempts: recoveryPolicy.smsMaxAttempts ?? undefined, coolOffSeconds: recoveryPolicy.smsCoolOffSeconds ?? undefined },
+      SEND_WHATSAPP: { allowed: recoveryPolicy.whatsappAllowed ?? undefined, maxAttempts: recoveryPolicy.whatsappMaxAttempts ?? undefined, coolOffSeconds: recoveryPolicy.whatsappCoolOffSeconds ?? undefined },
+      SEND_EMAIL: { allowed: recoveryPolicy.emailAllowed ?? undefined, maxAttempts: recoveryPolicy.emailMaxAttempts ?? undefined, coolOffSeconds: recoveryPolicy.emailCoolOffSeconds ?? undefined },
+      SEND_PAYMENT_LINK: { allowed: recoveryPolicy.paymentLinkAllowed ?? undefined, maxAttempts: recoveryPolicy.paymentLinkMaxAttempts ?? undefined, coolOffSeconds: recoveryPolicy.paymentLinkCoolOffSeconds ?? undefined },
+      CHANGE_PAYMENT_METHOD_PROMPT: { allowed: recoveryPolicy.paymentMethodPromptAllowed ?? undefined, maxAttempts: recoveryPolicy.paymentMethodPromptMaxAttempts ?? undefined, coolOffSeconds: recoveryPolicy.paymentMethodPromptCoolOffSeconds ?? undefined },
+      HUMAN_REVIEW: { allowed: recoveryPolicy.humanReviewAllowed ?? undefined, maxAttempts: recoveryPolicy.humanReviewMaxAttempts ?? undefined, coolOffSeconds: undefined },
+    } as any : undefined,
   };
 
   return {
     event: eventContext,
     user: userContext,
-    merchant: merchantContext
+    merchant: merchantContext,
+    previousRecoveryAttempts,
   };
 }

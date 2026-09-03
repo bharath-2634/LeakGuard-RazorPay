@@ -214,7 +214,8 @@ async function executeFinalTransaction(data: any) {
             humanReviewEnabled: context.merchant.recoveryConfig?.humanReviewEnabled ?? false,
             humanReviewEmail: context.merchant.recoveryConfig?.humanReviewEmail || null,
             version: context.merchant.recoveryConfig?.version ?? 1
-          }
+          },
+          recoveryPolicy: context.merchant.recoveryPolicy,
         },
         payment: {
           razorpayOrderId: context.event.razorpayOrderId || null,
@@ -228,7 +229,8 @@ async function executeFinalTransaction(data: any) {
           currency: context.event.currency,
           category: context.merchant.orderCategory || null
         },
-        evidence: diagnosis.evidence || {}
+        evidence: diagnosis.evidence || {},
+        previousAttempts: context.previousRecoveryAttempts,
       };
 
       await tx.outboxEvent.create({

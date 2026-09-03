@@ -59,12 +59,23 @@ export interface EventContext {
       humanReviewEmail?: string | null;
       version: number;
     };
+    recoveryPolicy?: {
+      recoveryEnabled: boolean;
+      version: number;
+      [key: string]: boolean | number | undefined;
+    };
   }
   
   export interface ValidationContext {
     event: EventContext;
     user: UserContext;
     merchant: MerchantContext;
+    previousRecoveryAttempts: Array<{
+      interventionType: string;
+      status: string;
+      attemptedAt?: Date | null;
+      completedAt?: Date | null;
+    }>;
   }
   
   export interface DiagnosisResult {

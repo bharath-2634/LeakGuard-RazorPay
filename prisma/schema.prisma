@@ -28,6 +28,8 @@ model Merchant {
   paymentEvents     PaymentEvent[]
   webhookEvents     RazorpayWebhookEvent[]
   riskEvents        RiskEvent[]
+  recoveryPolicy    MerchantRecoveryPolicy?
+  recoveryAttempts  RecoveryAttempt[]
 
   @@map("merchants")
 }
@@ -67,6 +69,62 @@ model MerchantRecoveryConfig {
   updatedAt                DateTime @updatedAt
 
   @@map("merchant_recovery_configs")
+}
+
+model MerchantRecoveryPolicy {
+  id                               String   @id @default(cuid())
+  merchantId                       String   @unique
+  recoveryEnabled                  Boolean  @default(true)
+  retryAllowed                     Boolean?
+  retryMaxAttempts                 Int?
+  retryCoolOffSeconds              Int?
+  smsAllowed                       Boolean?
+  smsMaxAttempts                   Int?
+  smsCoolOffSeconds                Int?
+  whatsappAllowed                 Boolean?
+  whatsappMaxAttempts             Int?
+  whatsappCoolOffSeconds          Int?
+  emailAllowed                    Boolean?
+  emailMaxAttempts                Int?
+  emailCoolOffSeconds             Int?
+  paymentLinkAllowed              Boolean?
+  paymentLinkMaxAttempts          Int?
+  paymentLinkCoolOffSeconds       Int?
+  paymentMethodPromptAllowed      Boolean?
+  paymentMethodPromptMaxAttempts Int?
+  paymentMethodPromptCoolOffSeconds Int?
+  humanReviewAllowed              Boolean?
+  humanReviewMaxAttempts          Int?
+  version                         Int      @default(1)
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+  merchant                        Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("merchant_recovery_policies")
+}
+
+model RecoveryAttempt {
+  id               String         @id @default(cuid())
+  merchantId       String
+  paymentAttemptId String
+  riskEventId      String?
+  interventionType String
+  attemptNumber    Int
+  status           String
+  policyDecision   String?
+  policyVersion    String?
+  attemptedAt      DateTime?
+  completedAt      DateTime?
+  metadata         Json?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  merchant         Merchant       @relation(fields: [merchantId], references: [id])
+  paymentAttempt   PaymentAttempt @relation(fields: [paymentAttemptId], references: [id])
+  riskEvent        RiskEvent?     @relation(fields: [riskEventId], references: [id])
+
+  @@index([merchantId, paymentAttemptId])
+  @@index([paymentAttemptId, interventionType, attemptedAt])
+  @@map("recovery_attempts")
 }
 
 model Customer {
@@ -118,6 +176,7 @@ model PaymentAttempt {
   updatedAt                 DateTime       @updatedAt
 
   paymentEvents             PaymentEvent[]
+  recoveryAttempts          RecoveryAttempt[]
 
   @@index([merchantId, merchantOrderId])
   @@index([merchantId, customerId])
@@ -178,6 +237,7 @@ model RiskEvent {
   attemptCount         Int      @default(0)
 
   emittedAt            DateTime @default(now())
+  recoveryAttempts     RecoveryAttempt[]
 
   @@index([paymentAttemptId])
   @@index([merchantId])
