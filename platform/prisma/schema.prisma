@@ -32,6 +32,9 @@ model Merchant {
   recoveryAttempts  RecoveryAttempt[]
   policyEvaluations  RecoveryPolicyEvaluation[]
   executions          RecoveryExecution[]
+  recoveryOutcomes    RecoveryOutcome[]
+  recoveryAudits      RecoveryAudit[]
+  recoveryControls    RecoveryControl[]
 
   @@map("merchants")
 }
@@ -188,6 +191,7 @@ model RecoveryExecution {
   merchant              Merchant @relation(fields: [merchantId], references: [id])
   paymentAttempt        PaymentAttempt @relation(fields: [paymentAttemptId], references: [id])
   policyEvaluation      RecoveryPolicyEvaluation @relation(fields: [policyEvaluationId], references: [id])
+  recoveryOutcomes      RecoveryOutcome[]
 
   @@index([paymentAttemptId, createdAt])
   @@index([paymentAttemptId, interventionType])
@@ -248,6 +252,9 @@ model PaymentAttempt {
   recoveryAttempts          RecoveryAttempt[]
   policyEvaluations         RecoveryPolicyEvaluation[]
   executions                RecoveryExecution[]
+  recoveryOutcomes          RecoveryOutcome[]
+  recoveryAudits            RecoveryAudit[]
+  recoveryControls          RecoveryControl[]
 
   @@index([merchantId, merchantOrderId])
   @@index([merchantId, customerId])
@@ -309,6 +316,7 @@ model RiskEvent {
 
   emittedAt            DateTime @default(now())
   recoveryAttempts     RecoveryAttempt[]
+  recoveryControls     RecoveryControl[]
 
   @@index([paymentAttemptId])
   @@index([merchantId])
@@ -388,4 +396,99 @@ model OutboxEvent {
   processedAt DateTime? @map("processed_at")
 
   @@map("outbox_events")
+}
+
+model RecoveryControl {
+  id                String   @id @default(cuid())
+
+  merchantId        String
+  paymentAttemptId  String
+  riskEventId       String   @unique
+
+  status            String   @default("ACTIVE") // ACTIVE | STOPPED
+  stoppedBy         String?  // MERCHANT | SYSTEM
+  stopReason        String?
+  stoppedAt         DateTime?
+
+  version           Int      @default(1)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  merchant          Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  paymentAttempt    PaymentAttempt @relation(fields: [paymentAttemptId], references: [id], onDelete: Cascade)
+  riskEvent         RiskEvent      @relation(fields: [riskEventId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, status])
+  @@index([paymentAttemptId])
+  @@map("recovery_controls")
+}
+
+model RecoveryOutcome {
+  id                  String   @id @default(cuid())
+
+  merchantId          String
+  paymentAttemptId    String
+  riskEventId         String?
+  executionId         String
+
+  interventionType    String
+
+  executionStatus     String   // SUCCEEDED | FAILED | BLOCKED | SKIPPED
+  outcomeStatus       String   // RECOVERED | NOT_RECOVERED | PENDING
+  resolutionStatus    String   // RESOLVED | UNRESOLVED
+
+  recoveryAmount      Float?
+  recoveryCurrency    String?
+
+  resolutionSource    String?  // PAYMENT_SUCCESS | PAYMENT_WEBHOOK | EXISTING_RESOLUTION | NONE
+
+  measuredAt          DateTime @default(now())
+
+  evidence            Json?
+  metadata            Json?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  merchant            Merchant          @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  paymentAttempt      PaymentAttempt    @relation(fields: [paymentAttemptId], references: [id], onDelete: Cascade)
+  execution           RecoveryExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([paymentAttemptId, measuredAt])
+  @@index([executionId])
+  @@index([merchantId, measuredAt])
+  @@map("recovery_outcomes")
+}
+
+model RecoveryAudit {
+  id                String   @id @default(cuid())
+
+  merchantId        String
+  paymentAttemptId  String
+  riskEventId       String?
+
+  eventType         String
+
+  actor             String   // SYSTEM | GEMINI | MERCHANT | PROVIDER | CUSTOMER
+  component         String   // DETECTION | VALIDATION | DIAGNOSIS | SELECTION | POLICY | EXECUTION | OUTCOME | REASSESSMENT | CONTROL
+
+  action            String
+  status            String
+  reason            String?
+
+  inputSnapshot     Json?
+  outputSnapshot    Json?
+
+  correlationId     String
+
+  createdAt         DateTime @default(now())
+
+  merchant          Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  paymentAttempt    PaymentAttempt @relation(fields: [paymentAttemptId], references: [id], onDelete: Cascade)
+
+  @@index([riskEventId, createdAt])
+  @@index([paymentAttemptId, createdAt])
+  @@index([merchantId, createdAt])
+  @@map("recovery_audits")
 }

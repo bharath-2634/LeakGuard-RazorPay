@@ -6,6 +6,7 @@ import paymentRoutes from './api/payment.routes.js';
 import sdkRoutes from './api/sdk.routes.js';
 import telemetryRoutes from './api/telemetry.routes.js';
 import webhookRoutes from './api/webhook.routes.js';
+import recoveryRoutes from './api/recovery.routes.js';
 import { prisma } from './infrastructure/db/prisma-client.js';
 
 export const app = express();
@@ -53,3 +54,5 @@ app.use('/v1', paymentRoutes);
 app.use('/v1', sdkRoutes);
 app.use('/v1', telemetryRoutes);
 app.use('/v1', webhookRoutes);
+app.use('/v1', recoveryRoutes);
+
