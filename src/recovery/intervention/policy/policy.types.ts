@@ -44,6 +44,16 @@ export interface EventContext {
   revenueObligationStatus?: string;
   complianceStatus?: ComplianceStatus;
   complianceReason?: string;
+  customerIdentity?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  merchantConfig?: {
+    emailEnabled?: boolean;
+    smsEnabled?: boolean;
+    whatsappEnabled?: boolean;
+    humanReviewEnabled?: boolean;
+    humanReviewContact?: string;
+  };
 }
 
 export interface EffectiveBoundary {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { GLOBAL_SAFE_DEFAULTS } from '../src/recovery/intervention/policy/global-policy.js';
 import { getEffectiveBoundary } from '../src/recovery/intervention/policy/boundary-calculator.js';
 import { evaluateIntervention } from '../src/recovery/intervention/policy/policy-evaluator.js';
+import { evaluateCandidatePolicy } from '../src/recovery/intervention/policy/policy-engine.js';
 
 const merchantPolicy = {
   recoveryEnabled: true,
@@ -11,6 +12,8 @@ const merchantPolicy = {
 
 const baseEvent = {
   paymentAttemptId: 'pa_test',
+  customerPhone: '+919999999999',
+  merchantConfig: { smsEnabled: true },
   businessState: 'UNRESOLVED',
   providerState: 'FAILED',
 };
@@ -59,7 +62,7 @@ const humanBoundary = getEffectiveBoundary(
   GLOBAL_SAFE_DEFAULTS,
   { recoveryEnabled: true, version: 'merchant-v1', HUMAN_REVIEW: { allowed: true } },
   {},
-  baseEvent,
+  { ...baseEvent, merchantConfig: { humanReviewEnabled: true, humanReviewContact: 'review@example.com' } },
   'HUMAN_REVIEW',
   []
 );
@@ -70,5 +73,32 @@ const approvalRequired = evaluateIntervention(
   { recoveryEnabled: true }
 );
 assert.equal(approvalRequired.decision, 'APPROVAL_REQUIRED');
+
+const missingWhatsappNumber = evaluateCandidatePolicy({
+  event: { paymentAttemptId: 'pa_whatsapp', merchantId: 'merchant_test' },
+  customer: { id: 'customer_test' },
+  merchant: {
+    id: 'merchant_test',
+    recoveryConfig: { whatsappEnabled: true },
+    recoveryPolicy: { recoveryEnabled: true, version: 'merchant-v1', SEND_WHATSAPP: { allowed: true } },
+  },
+  payment: { providerState: 'FAILED', businessState: 'UNRESOLVED' },
+  compliance: { SEND_WHATSAPP: 'ALLOWED' },
+}, 'SEND_WHATSAPP');
+assert.equal(missingWhatsappNumber.decision, 'REJECTED');
+assert.match(missingWhatsappNumber.reasons.join(' '), /phone/);
+
+const smsAfterWhatsappRejection = evaluateCandidatePolicy({
+  event: { paymentAttemptId: 'pa_sms', merchantId: 'merchant_test' },
+  customer: { id: 'customer_test', phone: '+919999999999' },
+  merchant: {
+    id: 'merchant_test',
+    recoveryConfig: { smsEnabled: true },
+    recoveryPolicy: { recoveryEnabled: true, version: 'merchant-v1', SEND_SMS: { allowed: true } },
+  },
+  payment: { providerState: 'FAILED', businessState: 'UNRESOLVED' },
+  compliance: { SEND_SMS: 'ALLOWED' },
+}, 'SEND_SMS');
+assert.equal(smsAfterWhatsappRejection.decision, 'ALLOWED');
 
 console.log('Policy engine tests passed');

@@ -35,6 +35,10 @@ export function evaluateCandidatePolicy(
     providerState: context.payment?.providerState,
     complianceStatus: context.compliance?.[interventionType],
     complianceReason: context.complianceReasons?.[interventionType],
+    customerIdentity: context.customer?.id || context.customer?.externalCustomerId,
+    customerEmail: context.customer?.email,
+    customerPhone: context.customer?.phone,
+    merchantConfig: context.merchant?.recoveryConfig,
   };
   const boundary = getEffectiveBoundary(
     GLOBAL_SAFE_DEFAULTS,

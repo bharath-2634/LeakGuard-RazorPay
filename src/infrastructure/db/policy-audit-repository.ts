@@ -52,9 +52,16 @@ export async function persistPolicyDecision(
       if (selectedEvaluation) {
         const executionPayload = {
           type: 'RECOVERY_EXECUTION_REQUEST',
+          executionRequestVersion: 'v1',
           policyEvaluationId: selectedEvaluationId,
+          validationResultId: context.metadata?.validationResultId,
+          riskEventId: context.event?.riskEventId,
+          paymentAttemptId,
+          merchantId,
+          correlationId: context.metadata?.correlationId || context.event?.riskEventId,
           intervention: selectedCandidate,
           recoveryContext: context,
+          merchant: { recoveryEnabled: context.merchant?.recoveryPolicy?.recoveryEnabled !== false },
           policy: {
             decision: selectedEvaluation.decision,
             policyVersion: selectedEvaluation.policyVersion,
@@ -67,7 +74,7 @@ export async function persistPolicyDecision(
           },
         };
         const outbox = await client.query<{ id: string }>(
-          `INSERT INTO "outbox_events" ("eventType", "aggregateId", "payload", "status")
+          `INSERT INTO "outbox_events" ("event_type", "aggregate_id", "payload", "status")
            VALUES ($1, $2, $3::jsonb, 'PENDING') RETURNING "id"`,
           ['RECOVERY_EXECUTION_REQUEST', selectedEvaluationId, JSON.stringify(executionPayload)]
         );

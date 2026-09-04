@@ -31,20 +31,20 @@ export async function relayExecutionOutbox(): Promise<number> {
   let count = 0;
   try {
     const pending = await client.query(
-      `SELECT "id", "eventType", "payload", "attempts"
+      `SELECT "id", "event_type", "payload", "attempts"
        FROM "outbox_events"
-       WHERE "status" = 'PENDING' AND "eventType" = 'RECOVERY_EXECUTION_REQUEST'
-       ORDER BY "createdAt" ASC LIMIT 50`
+       WHERE "status" = 'PENDING' AND "event_type" = 'RECOVERY_EXECUTION_REQUEST'
+       ORDER BY "created_at" ASC LIMIT 50`
     );
 
     for (const event of pending.rows) {
       try {
-        await riskExecutionQueue.add(event.eventType, event.payload, {
+        await riskExecutionQueue.add(event.event_type, event.payload, {
           jobId: event.id,
           removeOnComplete: true,
         });
         await client.query(
-          `UPDATE "outbox_events" SET "status" = 'PROCESSED', "processedAt" = NOW()
+          `UPDATE "outbox_events" SET "status" = 'PROCESSED', "processed_at" = NOW()
            WHERE "id" = $1 AND "status" = 'PENDING'`,
           [event.id]
         );
@@ -53,7 +53,7 @@ export async function relayExecutionOutbox(): Promise<number> {
         const message = error instanceof Error ? error.message : String(error);
         await client.query(
           `UPDATE "outbox_events"
-           SET "attempts" = "attempts" + 1, "lastError" = $2,
+           SET "attempts" = "attempts" + 1, "last_error" = $2,
                "status" = CASE WHEN "attempts" >= 3 THEN 'FAILED' ELSE "status" END
            WHERE "id" = $1`,
           [event.id, message]

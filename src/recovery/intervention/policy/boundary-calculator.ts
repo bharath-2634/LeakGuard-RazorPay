@@ -51,11 +51,36 @@ export function getEffectiveBoundary(
     modifier.contextualCoolOffSeconds
   );
   const merchantAllowed = merchant.allowed ?? true;
-  const allowed = Boolean(merchantPolicy.recoveryEnabled && merchantAllowed && definition?.enabled !== false);
+  const missingRequirements = (definition?.requiredCustomerData || []).filter((requirement) => {
+    if (requirement === 'paymentAttemptId') return !eventContext.paymentAttemptId;
+    if (requirement === 'customerIdentity') return !eventContext.customerIdentity && !eventContext.customerEmail && !eventContext.customerPhone;
+    if (requirement === 'email') return !eventContext.customerEmail;
+    if (requirement === 'phone') return !eventContext.customerPhone;
+    return false;
+  });
+  const missingMerchantRequirements = (definition?.requiredMerchantConfig || []).filter((requirement) => {
+    if (requirement === 'emailEnabled') return eventContext.merchantConfig?.emailEnabled !== true;
+    if (requirement === 'smsEnabled') return eventContext.merchantConfig?.smsEnabled !== true;
+    if (requirement === 'whatsappEnabled') return eventContext.merchantConfig?.whatsappEnabled !== true;
+    if (requirement === 'humanReviewEnabled') return eventContext.merchantConfig?.humanReviewEnabled !== true;
+    if (requirement === 'humanReviewContact') return !eventContext.merchantConfig?.humanReviewContact;
+    return false;
+  });
+  const allowed = Boolean(
+    merchantPolicy.recoveryEnabled &&
+    merchantAllowed &&
+    definition?.enabled !== false &&
+    missingRequirements.length === 0 &&
+    missingMerchantRequirements.length === 0
+  );
   const reason = !merchantPolicy.recoveryEnabled
     ? 'Merchant recovery kill switch is disabled'
     : !merchantAllowed
       ? 'Intervention is disabled by merchant policy'
+      : missingRequirements.length > 0
+        ? `Missing required customer data: ${missingRequirements.join(', ')}`
+        : missingMerchantRequirements.length > 0
+          ? `Missing required merchant configuration: ${missingMerchantRequirements.join(', ')}`
       : modifier.reason;
 
   return {
