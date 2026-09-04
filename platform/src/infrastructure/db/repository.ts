@@ -26,25 +26,25 @@ export const Repository = {
       updatedAt: new Date(),
       economics: data.economics?.create
         ? {
-            merchantId: data.id,
-            defaultMarginRate: data.economics.create.defaultMarginRate,
-            categoryEconomics: data.economics.create.categoryEconomics || [],
-          }
+          merchantId: data.id,
+          defaultMarginRate: data.economics.create.defaultMarginRate,
+          categoryEconomics: data.economics.create.categoryEconomics || [],
+        }
         : null,
       recoveryConfig: data.recoveryConfig?.create
         ? {
-            merchantId: data.id,
-            ...data.recoveryConfig.create,
-          }
+          merchantId: data.id,
+          ...data.recoveryConfig.create,
+        }
         : null,
       recoveryPolicy: data.recoveryPolicy?.create
         ? {
-            merchantId: data.id,
-            ...data.recoveryPolicy.create,
-            version: 1,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }
+          merchantId: data.id,
+          ...data.recoveryPolicy.create,
+          version: 1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
         : null,
     };
     inMemoryStore.merchants.set(data.id, record);
@@ -214,7 +214,7 @@ export const Repository = {
       console.log('🐘 [NEON DB SUCCESS] Created PaymentAttempt & Obligation in Neon PostgreSQL:', result.id);
       return result;
     }
-    
+
     // Fallback
     const record = {
       ...paymentAttemptData,
@@ -434,7 +434,7 @@ export const Repository = {
     try {
       const { OutboxPublisher } = await import('../queue/bullmq-client.js');
       await OutboxPublisher.relayPendingEvents();
-    } catch (e: any) {}
+    } catch (e: any) { }
 
     return record;
   },
@@ -457,7 +457,7 @@ export const Repository = {
         const obligation = await tx.revenueObligation.findUnique({
           where: { merchantId_merchantOrderId: { merchantId, merchantOrderId } }
         });
-        
+
         if (obligation && obligation.status !== 'RESOLVED') {
           await tx.revenueObligation.update({
             where: { id: obligation.id },
