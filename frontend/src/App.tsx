@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { Header } from './components/Header';
+import { Header, type TabType } from './components/Header';
+import { LiveRecoveryDashboard } from './components/LiveRecoveryDashboard';
+import { AuditLogsScreen } from './components/AuditLogsScreen';
 import { MerchantConnectCard } from './components/MerchantConnectCard';
 import { DeveloperKTDocs } from './components/DeveloperKTDocs';
 import { InteractiveSandbox } from './components/InteractiveSandbox';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'connect' | 'kt-docs' | 'sandbox'>('connect');
-  const [isConnected, setIsConnected] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const [isConnected, setIsConnected] = useState(true);
+  const [selectedAuditRiskEventId, setSelectedAuditRiskEventId] = useState<string | undefined>(undefined);
 
   const [merchantConfig, setMerchantConfig] = useState({
     merchantId: 'm_shopexpress_9f82a',
@@ -23,6 +26,11 @@ export function App() {
 
   const platformUrl = import.meta.env.VITE_PLATFORM_URL || 'https://leakguard-razorpay-production.up.railway.app';
 
+  const handleSelectAuditRiskEvent = (riskEventId: string) => {
+    setSelectedAuditRiskEventId(riskEventId);
+    setActiveTab('audit');
+  };
+
   return (
     <div className="min-h-screen pb-16">
       <Header
@@ -32,6 +40,22 @@ export function App() {
       />
 
       <main className="px-6">
+        {activeTab === 'dashboard' && (
+          <LiveRecoveryDashboard
+            platformUrl={platformUrl}
+            merchantId={merchantConfig.merchantId}
+            onSelectAuditRiskEvent={handleSelectAuditRiskEvent}
+          />
+        )}
+
+        {activeTab === 'audit' && (
+          <AuditLogsScreen
+            platformUrl={platformUrl}
+            merchantId={merchantConfig.merchantId}
+            initialRiskEventId={selectedAuditRiskEventId}
+          />
+        )}
+
         {activeTab === 'connect' && (
           <MerchantConnectCard
             merchantConfig={merchantConfig}
@@ -42,15 +66,15 @@ export function App() {
           />
         )}
 
-        {activeTab === 'kt-docs' && (
-          <DeveloperKTDocs
+        {activeTab === 'sandbox' && (
+          <InteractiveSandbox
             platformUrl={platformUrl}
             merchantId={merchantConfig.merchantId}
           />
         )}
 
-        {activeTab === 'sandbox' && (
-          <InteractiveSandbox
+        {activeTab === 'kt-docs' && (
+          <DeveloperKTDocs
             platformUrl={platformUrl}
             merchantId={merchantConfig.merchantId}
           />
