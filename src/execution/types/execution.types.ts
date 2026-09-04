@@ -105,6 +105,14 @@ export interface ProviderExecutionResult {
   failureReason?: string;
 }
 
+export interface PaymentLinkResult {
+  success: boolean;
+  paymentLinkUrl?: string;
+  providerResourceId?: string;
+  failureCode?: string;
+  failureReason?: string;
+}
+
 export interface SafetyCheckResult {
   safe: boolean;
   reason?: string;

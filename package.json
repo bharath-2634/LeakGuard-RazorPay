@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node --experimental-specifier-resolution=node dist/index.js",
     "build": "tsc",
-    "test": "tsx tests/policy-engine.test.ts && tsx tests/execution-engine.test.ts",
+    "test": "tsx tests/policy-engine.test.ts && tsx tests/execution-engine.test.ts && tsx tests/payment-link.test.ts",
     "test:channels": "tsx tests/live-channel-delivery.test.ts",
     "test:e2e": "tsx tests/policy_pipeline_e2e.ts"
   },

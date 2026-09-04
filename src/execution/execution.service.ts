@@ -4,7 +4,8 @@ import { validateExecutionAction } from './safety/execution-safety-validator.js'
 import { createStrategies } from './strategy/strategies.js';
 import { createProviderRegistry } from './providers/provider-registry.js';
 import { completeExecution, persistInvalidExecution, startOrGetExecution } from './persistence/recovery-execution.repository.js';
-import { ExecutionRequest, ExecutionResult } from './types/execution.types.js';
+import { ExecutionAction, ExecutionRequest, ExecutionResult } from './types/execution.types.js';
+import { PaymentLinkProviderAdapter } from './providers/provider-adapter.js';
 
 const strategies = createStrategies();
 const providers = createProviderRegistry();
@@ -58,7 +59,38 @@ export async function executeRecovery(request: ExecutionRequest): Promise<Execut
     return result;
   }
   try {
-    const providerResult = await provider.execute(action);
+    let finalAction = action;
+    if (action.actionType !== 'PAYMENT_LINK' && action.content?.includes('{{PAYMENT_LINK}}')) {
+      const paymentLinkProvider = providers.find((candidate): candidate is PaymentLinkProviderAdapter => 'createPaymentLink' in candidate && candidate.supports('PAYMENT_LINK'));
+      if (!paymentLinkProvider) {
+        const result: ExecutionResult = { executionId: record.id, status: 'FAILED', interventionType: context.intervention.type, failureCode: 'PAYMENT_LINK_PROVIDER_UNSUPPORTED', failureReason: 'No payment-link provider is configured' };
+        await completeExecution({ executionId: record.id, context, result, action, safetyCheck, safetyValidation: validation });
+        return result;
+      }
+      const paymentLinkAction: ExecutionAction = {
+        actionType: 'PAYMENT_LINK',
+        interventionType: 'SEND_PAYMENT_LINK',
+        provider: 'RAZORPAY',
+        amount: context.payment.amount,
+        currency: context.payment.currency,
+        merchantOrderId: context.payment.merchantOrderId,
+        metadata: { merchantId: context.merchant.id, customer: context.customer },
+      };
+      const paymentLink = await paymentLinkProvider.createPaymentLink(paymentLinkAction);
+      if (!paymentLink.success || !paymentLink.paymentLinkUrl) {
+        const result: ExecutionResult = { executionId: record.id, status: 'FAILED', interventionType: context.intervention.type, provider: 'RAZORPAY', failureCode: paymentLink.failureCode || 'PAYMENT_LINK_CREATION_FAILED', failureReason: paymentLink.failureReason || 'Razorpay did not return a payment link' };
+        await completeExecution({ executionId: record.id, context, result, action, safetyCheck, safetyValidation: validation, providerResult: { provider: 'RAZORPAY', success: false, status: 'FAILED', failureCode: result.failureCode, failureReason: result.failureReason } });
+        return result;
+      }
+      finalAction = { ...action, content: action.content.replaceAll('{{PAYMENT_LINK}}', paymentLink.paymentLinkUrl), metadata: { ...action.metadata, paymentLinkUrl: paymentLink.paymentLinkUrl, paymentLinkProviderResourceId: paymentLink.providerResourceId } };
+      const finalValidation = validateExecutionAction(finalAction, context);
+      if (!finalValidation.valid) {
+        const result: ExecutionResult = { executionId: record.id, status: 'BLOCKED', interventionType: context.intervention.type, failureCode: 'EXECUTION_ACTION_INVALID', failureReason: finalValidation.violations.map((violation) => violation.message).join('; ') };
+        await completeExecution({ executionId: record.id, context, result, action: finalAction, safetyCheck, safetyValidation: finalValidation });
+        return result;
+      }
+    }
+    const providerResult = await provider.execute(finalAction);
     const result: ExecutionResult = providerResult.success
       ? { executionId: record.id, status: 'SUCCEEDED', interventionType: context.intervention.type, provider: providerResult.provider, providerExecutionId: providerResult.providerExecutionId || providerResult.providerResourceId, executedAt: new Date().toISOString() }
       : { executionId: record.id, status: 'FAILED', interventionType: context.intervention.type, provider: providerResult.provider, failureCode: providerResult.failureCode || 'PROVIDER_FAILURE', failureReason: providerResult.failureReason || 'Provider rejected the action' };

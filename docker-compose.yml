@@ -1,0 +1,18 @@
+services:
+  intervention-execution:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: leakguard-intervention-execution
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      EXECUTION_MODE: ${EXECUTION_MODE:-mock}
+      OUTCOME_QUEUE_NAME: ${OUTCOME_QUEUE_NAME:-execution-measure-queue}
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

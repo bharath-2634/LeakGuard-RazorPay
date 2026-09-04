@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { Pool } from 'pg';
 import { config } from '../../config/env.js';
-import { ExecutionAction, ProviderExecutionResult } from '../types/execution.types.js';
+import { ExecutionAction, PaymentLinkResult, ProviderExecutionResult } from '../types/execution.types.js';
 import { ProviderAdapter } from './provider-adapter.js';
 
 function requireConfig(values: Array<[string, string | undefined]>): void {
@@ -35,7 +35,7 @@ export class TwilioAdapter implements ProviderAdapter {
       To: isWhatsApp ? normalizeWhatsAppAddress(action.recipient!) : normalizePhoneAddress(action.recipient!),
       From: isWhatsApp ? normalizeWhatsAppAddress(from!) : normalizePhoneAddress(from!),
     };
-    if (isWhatsApp && config.TWILIO_WHATSAPP_CONTENT_SID) {
+    if (isWhatsApp && config.TWILIO_WHATSAPP_CONTENT_SID && (!action.metadata?.paymentLinkUrl || config.TWILIO_WHATSAPP_PAYMENT_LINK_VARIABLE)) {
       form.ContentSid = config.TWILIO_WHATSAPP_CONTENT_SID;
       form.ContentVariables = buildContentVariables(action);
     } else {
@@ -55,12 +55,20 @@ export class TwilioAdapter implements ProviderAdapter {
   }
 }
 
-function buildContentVariables(action: ExecutionAction): string {
+export function buildContentVariables(action: ExecutionAction): string {
   const template = config.TWILIO_WHATSAPP_CONTENT_VARIABLES;
-  if (!template) return JSON.stringify({ '1': action.metadata?.customerName || 'there', '2': action.metadata?.amount || '' });
-  return template
+  const values = template
+    ? template
     .replace(/\{\{customerName\}\}/g, String(action.metadata?.customerName || 'there'))
-    .replace(/\{\{amount\}\}/g, String(action.metadata?.amount || ''));
+    .replace(/\{\{amount\}\}/g, String(action.metadata?.amount || ''))
+    : JSON.stringify({ '1': action.metadata?.customerName || 'there', '2': action.metadata?.amount || '' });
+  try {
+    const parsed = JSON.parse(values) as Record<string, string>;
+    if (action.metadata?.paymentLinkUrl && config.TWILIO_WHATSAPP_PAYMENT_LINK_VARIABLE) parsed[config.TWILIO_WHATSAPP_PAYMENT_LINK_VARIABLE] = String(action.metadata.paymentLinkUrl);
+    return JSON.stringify(parsed);
+  } catch {
+    throw new Error('TWILIO_WHATSAPP_CONTENT_VARIABLES must be valid JSON');
+  }
 }
 
 export class ResendAdapter implements ProviderAdapter {
@@ -83,11 +91,21 @@ export class RazorpayAdapter implements ProviderAdapter {
   supports(actionType: string): boolean { return actionType === 'PAYMENT_LINK' || actionType === 'PAYMENT_RETRY'; }
 
   async execute(action: ExecutionAction): Promise<ProviderExecutionResult> {
+    if (action.actionType === 'PAYMENT_LINK') {
+      const link = await this.createPaymentLink(action);
+      return {
+        provider: 'RAZORPAY',
+        success: link.success,
+        status: link.success ? 'CREATED' : 'FAILED',
+        providerResourceId: link.providerResourceId,
+        paymentLinkUrl: link.paymentLinkUrl,
+        failureCode: link.failureCode,
+        failureReason: link.failureReason,
+      };
+    }
     const credentials = await resolveRazorpayCredentials(action.metadata?.merchantId as string | undefined);
-    const endpoint = action.actionType === 'PAYMENT_LINK' ? 'https://api.razorpay.com/v1/payment_links' : 'https://api.razorpay.com/v1/orders';
-    const body = action.actionType === 'PAYMENT_LINK'
-      ? { amount: Math.round((action.amount || 0) * 100), currency: action.currency, reference_id: action.merchantOrderId, description: 'Payment recovery' }
-      : { amount: Math.round((action.amount || 0) * 100), currency: action.currency, receipt: action.merchantOrderId };
+    const endpoint = 'https://api.razorpay.com/v1/orders';
+    const body = { amount: Math.round((action.amount || 0) * 100), currency: action.currency, receipt: action.merchantOrderId };
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { Authorization: `Basic ${Buffer.from(`${credentials.keyId}:${credentials.secret}`).toString('base64')}`, 'Content-Type': 'application/json' },
@@ -96,6 +114,28 @@ export class RazorpayAdapter implements ProviderAdapter {
     const data = await response.json() as any;
     if (!response.ok) return { provider: 'RAZORPAY', success: false, status: 'FAILED', failureCode: `RAZORPAY_HTTP_${response.status}`, failureReason: data.error?.description || 'Razorpay request failed' };
     return { provider: 'RAZORPAY', success: true, status: 'CREATED', providerResourceId: data.id, paymentLinkUrl: data.short_url };
+  }
+
+  async createPaymentLink(action: ExecutionAction): Promise<PaymentLinkResult> {
+    try {
+      const credentials = await resolveRazorpayCredentials(action.metadata?.merchantId as string | undefined);
+      const response = await fetch('https://api.razorpay.com/v1/payment_links', {
+        method: 'POST',
+        headers: { Authorization: `Basic ${Buffer.from(`${credentials.keyId}:${credentials.secret}`).toString('base64')}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: Math.round((action.amount || 0) * 100),
+          currency: action.currency,
+          reference_id: action.merchantOrderId,
+          description: 'Payment recovery',
+          customer: action.metadata?.customer,
+        }),
+      });
+      const data = await response.json() as any;
+      if (!response.ok) return { success: false, failureCode: `RAZORPAY_HTTP_${response.status}`, failureReason: data.error?.description || 'Razorpay payment link request failed' };
+      return { success: true, providerResourceId: data.id, paymentLinkUrl: data.short_url };
+    } catch (error) {
+      return { success: false, failureCode: 'RAZORPAY_PAYMENT_LINK_EXCEPTION', failureReason: error instanceof Error ? error.message : String(error) };
+    }
   }
 }
 

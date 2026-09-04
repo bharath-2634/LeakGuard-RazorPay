@@ -17,6 +17,7 @@ const envSchema = z.object({
   RAZORPAY_KEY_ID: z.string().optional(),
   TWILIO_WHATSAPP_CONTENT_SID: z.string().optional(),
   TWILIO_WHATSAPP_CONTENT_VARIABLES: z.string().optional(),
+  TWILIO_WHATSAPP_PAYMENT_LINK_VARIABLE: z.string().default(''),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   MASTER_SECRET_KEY: z.string().optional(),
   OUTCOME_QUEUE_NAME: z.string().default('execution-measure-queue'),
