@@ -1,5 +1,5 @@
 import { resolveExecutionContext, ExecutionContextError } from './context/execution-context-resolver.js';
-import { runFinalSafetyCheck } from './safety/final-safety-check.js';
+import { runFinalSafetyCheckAsync } from './safety/final-safety-check.js';
 import { validateExecutionAction } from './safety/execution-safety-validator.js';
 import { createStrategies } from './strategy/strategies.js';
 import { createProviderRegistry } from './providers/provider-registry.js';
@@ -19,7 +19,7 @@ export async function executeRecovery(request: ExecutionRequest): Promise<Execut
     return { executionId: persistedId || `invalid_${Date.now()}`, status: 'BLOCKED', interventionType: request.intervention?.type || 'UNKNOWN', failureCode: invalid.code, failureReason: invalid.message };
   }
 
-  const safetyCheck = runFinalSafetyCheck(context);
+  const safetyCheck = await runFinalSafetyCheckAsync(context);
   const attemptNumber = context.policy.attemptsUsed + 1;
   const idempotencyKey = `${context.merchant.id}:${context.payment.paymentAttemptId}:${context.intervention.type}:${attemptNumber}`;
   const blocked = (failureCode: string, failureReason: string): ExecutionResult => ({ executionId: `pending_${idempotencyKey}`, status: 'BLOCKED', interventionType: context.intervention.type, failureCode, failureReason });
@@ -34,8 +34,10 @@ export async function executeRecovery(request: ExecutionRequest): Promise<Execut
     return result;
   }
   if (!safetyCheck.safe) {
-    const record = await startOrGetExecution({ context, status: 'BLOCKED', attemptNumber, idempotencyKey, safetyCheck, failureCode: 'FINAL_SAFETY_CHECK_FAILED', failureReason: safetyCheck.reason });
-    const result = { ...blocked('FINAL_SAFETY_CHECK_FAILED', safetyCheck.reason || 'Final safety check failed'), executionId: record.id } as ExecutionResult;
+    const failureCode = safetyCheck.failureCode || 'FINAL_SAFETY_CHECK_FAILED';
+    const failureReason = safetyCheck.reason || 'Final safety check failed';
+    const record = await startOrGetExecution({ context, status: 'BLOCKED', attemptNumber, idempotencyKey, safetyCheck, failureCode, failureReason });
+    const result = { ...blocked(failureCode, failureReason), executionId: record.id } as ExecutionResult;
     await completeExecution({ executionId: record.id, context, result, safetyCheck });
     return result;
   }
