@@ -31,6 +31,7 @@ model Merchant {
   recoveryPolicy    MerchantRecoveryPolicy?
   recoveryAttempts  RecoveryAttempt[]
   policyEvaluations  RecoveryPolicyEvaluation[]
+  executions          RecoveryExecution[]
 
   @@map("merchants")
 }
@@ -143,7 +144,7 @@ model RecoveryPolicyEvaluation {
   coolOffSeconds            Int
   secondsSinceLastAttempt  Int?
   killSwitchStatus          String
-  complianceStatus         String
+  complianceStatus          String
   frequencyStatus           String
   coolOffStatus             String
   rejectionReasons          Json?
@@ -151,11 +152,48 @@ model RecoveryPolicyEvaluation {
   evaluatedAt               DateTime @default(now())
   merchant                  Merchant @relation(fields: [merchantId], references: [id])
   paymentAttempt            PaymentAttempt @relation(fields: [paymentAttemptId], references: [id])
+  executions                RecoveryExecution[]
 
   @@index([paymentAttemptId, evaluatedAt])
   @@index([paymentAttemptId, interventionType])
   @@index([merchantId, evaluatedAt])
   @@map("recovery_policy_evaluations")
+}
+
+model RecoveryExecution {
+  id                    String   @id @default(cuid())
+  merchantId            String
+  paymentAttemptId      String
+  riskEventId           String?
+  validationResultId    String?
+  policyEvaluationId    String
+  interventionType      String
+  status                String
+  provider              String?
+  providerExecutionId   String?
+  requestSnapshot       Json?
+  actionSnapshot        Json?
+  safetyCheckSnapshot   Json?
+  safetyValidation      Json?
+  providerResponse      Json?
+  failureCode           String?
+  failureReason         String?
+  attemptNumber         Int
+  idempotencyKey        String   @unique
+  startedAt             DateTime?
+  completedAt           DateTime?
+  correlationId         String
+  createdAt              DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  merchant              Merchant @relation(fields: [merchantId], references: [id])
+  paymentAttempt        PaymentAttempt @relation(fields: [paymentAttemptId], references: [id])
+  policyEvaluation      RecoveryPolicyEvaluation @relation(fields: [policyEvaluationId], references: [id])
+
+  @@index([paymentAttemptId, createdAt])
+  @@index([paymentAttemptId, interventionType])
+  @@index([merchantId, createdAt])
+  @@index([policyEvaluationId])
+  @@map("recovery_executions")
 }
 
 model Customer {
@@ -209,6 +247,7 @@ model PaymentAttempt {
   paymentEvents             PaymentEvent[]
   recoveryAttempts          RecoveryAttempt[]
   policyEvaluations         RecoveryPolicyEvaluation[]
+  executions                RecoveryExecution[]
 
   @@index([merchantId, merchantOrderId])
   @@index([merchantId, customerId])
