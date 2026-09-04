@@ -123,6 +123,7 @@ export interface SafetyCheckResult {
     attemptsAvailable: boolean;
     requiredDataAvailable: boolean;
     interventionEnabled: boolean;
+    recoveryNotStopped?: boolean;
   };
 }
 
