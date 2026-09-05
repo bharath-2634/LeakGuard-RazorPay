@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # =========================================================================
+  # 1. DATABASE & QUEUE INFRASTRUCTURE
+  # =========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: leakguard-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: leakguard
+      POSTGRES_PASSWORD: leakguard_secure_pass
+      POSTGRES_DB: leakguard_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leakguard -d leakguard_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: leakguard-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # =========================================================================
+  # 2. LEAKGUARD PLATFORM REST API SERVER & MERCHANT PORTAL
+  # =========================================================================
+  platform-api:
+    build:
+      context: ./RevenueRiskDetectionSDK/platform
+      dockerfile: Dockerfile
+    container_name: leakguard-platform-api
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://leakguard:leakguard_secure_pass@postgres:5432/leakguard_db?sslmode=disable"
+      REDIS_URL: "redis://redis:6379"
+      INTERVENTION_REDIS_URL: "redis://redis:6379"
+      MASTER_SECRET_KEY: "super_secret_master_key_for_aes_encryption"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend-portal:
+    build:
+      context: ./RevenueRiskDetectionSDK/frontend
+      dockerfile: Dockerfile
+    container_name: leakguard-frontend-portal
+    restart: always
+    ports:
+      - "5173:80"
+    environment:
+      VITE_PLATFORM_URL: "http://localhost:3000"
+    depends_on:
+      - platform-api
+
+  # =========================================================================
+  # 3. VALIDATION & AI DIAGNOSIS ENGINE WORKER
+  # =========================================================================
+  validation-worker:
+    build:
+      context: ./ValidationRecoveryDiagnosis
+      dockerfile: Dockerfile
+    container_name: leakguard-validation-worker
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://leakguard:leakguard_secure_pass@postgres:5432/leakguard_db?sslmode=disable"
+      REDIS_URL: "redis://redis:6379"
+      GEMINI_API_KEY: "${GEMINI_API_KEY}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # =========================================================================
+  # 4. SELECT INTERVENTION & PIPELINE ORCHESTRATION WORKER
+  # =========================================================================
+  orchestration-worker:
+    build:
+      context: ./SelectInterventionPipelineOrchestration
+      dockerfile: Dockerfile
+    container_name: leakguard-orchestration-worker
+    restart: always
+    environment:
+      NODE_ENV: production
+      EXECUTION_MODE: live
+      DATABASE_URL: "postgresql://leakguard:leakguard_secure_pass@postgres:5432/leakguard_db?sslmode=disable"
+      REDIS_URL: "redis://redis:6379"
+      TWILIO_ACCOUNT_SID: "${TWILIO_ACCOUNT_SID}"
+      TWILIO_AUTH_TOKEN: "${TWILIO_AUTH_TOKEN}"
+      TWILIO_SMS_FROM: "${TWILIO_SMS_FROM}"
+      TWILIO_WHATSAPP_FROM: "${TWILIO_WHATSAPP_FROM}"
+      RESEND_API_KEY: "${RESEND_API_KEY}"
+      RESEND_FROM_EMAIL: "${RESEND_FROM_EMAIL}"
+      RAZORPAY_KEY_ID: "${RAZORPAY_KEY_ID}"
+      RAZORPAY_KEY_SECRET: "${RAZORPAY_KEY_SECRET}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

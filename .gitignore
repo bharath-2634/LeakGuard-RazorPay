@@ -1,0 +1,13 @@
+# Node & Build artifacts
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+
+# IDE & OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
