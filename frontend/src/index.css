@@ -2,15 +2,26 @@
 @import "tailwindcss";
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    background-color: #0b0f19;
+    background-color: #071427;
     color: #f9fafb;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     min-height: 100vh;
-    background-image: 
+    background-image:
       radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.12) 0%, transparent 40%),
       radial-gradient(circle at 85% 75%, rgba(139, 92, 246, 0.12) 0%, transparent 40%);
   }
+}
+
+.landing-shell {
+  background:
+    radial-gradient(ellipse 80% 70% at 72% 42%, rgba(56, 189, 248, 0.38) 0%, transparent 58%),
+    linear-gradient(100deg, #061224 0%, #0a2a52 48%, #1a6db8 100%);
+  min-height: 100vh;
 }
 
 /* Custom Glassmorphism Utility */
@@ -27,3 +38,4 @@
 .glass-panel:hover {
   border-color: rgba(255, 255, 255, 0.15);
 }
+

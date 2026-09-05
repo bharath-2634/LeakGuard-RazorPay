@@ -4,9 +4,10 @@ import { Copy, Check, Code, Server, Smartphone, ShieldCheck, Activity, Terminal 
 interface DeveloperKTDocsProps {
   platformUrl: string;
   merchantId: string;
+  onDone?: () => void;
 }
 
-export const DeveloperKTDocs: React.FC<DeveloperKTDocsProps> = ({ platformUrl, merchantId }) => {
+export const DeveloperKTDocs: React.FC<DeveloperKTDocsProps> = ({ platformUrl, merchantId, onDone }) => {
   const [activeKTSection, setActiveKTSection] = useState<'backend' | 'frontend' | 'webhook' | 'telemetry' | 'architecture'>('backend');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -353,6 +354,18 @@ const reportMerchantTechnicalError = async (merchantOrderId, statusCode, errorCo
           </div>
         )}
       </div>
+
+      {onDone && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onDone}
+            className="rounded-full bg-sky-500 px-8 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 transition-transform hover:scale-[1.02] hover:bg-sky-400"
+          >
+            Done
+          </button>
+        </div>
+      )}
     </div>
   );
 };
